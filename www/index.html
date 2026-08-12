@@ -67,17 +67,25 @@
   .app-shell{
     display:flex;
     flex-direction:column;
+    justify-content:center;
     height:100vh;
     height:100dvh;
   }
+  .app-shell:has(.home-stage.is-active){
+    justify-content:flex-start;
+  }
   header.top{flex:0 0 auto;}
   .home-stage{
-    flex:1 1 auto;
+    flex:0 0 auto;
     min-height:0;
+    max-height:100%;
     overflow-y:auto;
     display:flex;
     flex-direction:column;
     -webkit-overflow-scrolling:touch;
+  }
+  .home-stage.is-active{
+    flex:1 1 auto;
   }
   .home-stage > .wrap{
     width:100%;
@@ -138,49 +146,6 @@
     transition:transform .15s ease, border-color .15s ease, background .15s ease;
   }
   .search-toggle-btn:hover{transform:translateY(-1px) scale(1.05); border-color:var(--teal); background:var(--teal-soft);}
-  .share-row{display:flex; align-items:center; gap:8px;}
-  .share-btn{
-    width:34px; height:34px;
-    border-radius:50%;
-    border:none;
-    display:flex; align-items:center; justify-content:center;
-    color:#fff;
-    cursor:pointer;
-    box-shadow:var(--shadow);
-    transition:transform .15s ease, filter .15s ease;
-  }
-  .share-btn:hover{transform:translateY(-2px); filter:brightness(1.08);}
-  .share-whatsapp{background:#25D366;}
-  .share-instagram{background:radial-gradient(circle at 30% 110%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%);}
-  .share-linkedin{background:#0A66C2;}
-  .share-x{background:#111111;}
-  .share-footer{
-    position:fixed;
-    left:50%;
-    bottom:16px;
-    z-index:40;
-    display:flex; flex-direction:column; align-items:center; gap:6px;
-    width:max-content; max-width:calc(100% - 32px);
-    margin:0; padding:10px 18px;
-    border-top:none;
-    border-radius:999px;
-    background:var(--white);
-    box-shadow:var(--shadow);
-    opacity:0;
-    transform:translateX(-50%) translateY(12px);
-    pointer-events:none;
-    transition:opacity .2s ease, transform .2s ease;
-  }
-  .share-footer.visible{
-    opacity:1;
-    transform:translateX(-50%) translateY(0);
-    pointer-events:auto;
-  }
-  .share-footer-label{
-    font-family:'Space Grotesk', sans-serif;
-    font-size:12.5px; font-weight:600;
-    color:var(--ink-faint);
-  }
   .theme-toggle{
     flex:0 0 auto;
     width:34px; height:34px;
@@ -654,9 +619,6 @@
     header.top{padding:20px 0 14px;}
     header.top::before{width:240px; height:240px; top:-100px; right:-90px;}
     .header-row{gap:10px;}
-    .share-btn{width:30px; height:30px;}
-    .share-footer{padding:10px 16px;}
-    .share-btn svg{width:15px; height:15px;}
     .theme-toggle{width:30px; height:30px; font-size:13px;}
     .header-icon-btn{width:30px; height:30px; font-size:12px;}
     .search-toggle-btn{width:26px; height:26px; font-size:12px;}
@@ -4592,25 +4554,6 @@
 </div>
 </div>
 
-<div class="share-footer">
-  <span class="share-footer-label">Share this tool:</span>
-  <div class="share-row" aria-label="Share this page">
-    <button type="button" class="share-btn share-whatsapp" data-share="whatsapp" title="Share on WhatsApp" aria-label="Share on WhatsApp">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.35 5.07L2 22l5.06-1.33A9.94 9.94 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.6 0-3.09-.46-4.35-1.26l-.31-.19-3.02.8.81-2.94-.2-.31A7.94 7.94 0 014 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8zm4.29-5.72c-.24-.12-1.4-.69-1.62-.77-.22-.08-.38-.12-.54.12-.16.24-.62.77-.76.93-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.92-1.18-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.01-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.46-.39-.4-.54-.4-.14 0-.3-.02-.46-.02s-.42.06-.64.3c-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.12 3.64.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.4-.57 1.6-1.12.2-.55.2-1.02.14-1.12-.06-.1-.22-.16-.46-.28z"/></svg>
-    </button>
-    <button type="button" class="share-btn share-instagram" data-share="instagram" title="Copy link for Instagram" aria-label="Copy link for Instagram">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>
-    </button>
-    <button type="button" class="share-btn share-linkedin" data-share="linkedin" title="Share on LinkedIn" aria-label="Share on LinkedIn">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.03-1.85-3.03-1.85 0-2.14 1.45-2.14 2.94v5.66H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.38-1.85 3.61 0 4.28 2.38 4.28 5.47v6.27zM5.34 7.43a2.06 2.06 0 110-4.12 2.06 2.06 0 010 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg>
-    </button>
-    <button type="button" class="share-btn share-x" data-share="x" title="Share on X" aria-label="Share on X">
-      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M18.9 2H22l-7.6 8.7L23 22h-6.6l-5.2-6.8L5.2 22H2l8.2-9.3L1.5 2h6.8l4.7 6.2L18.9 2zm-1.2 18h1.8L7.4 3.9H5.5L17.7 20z"/></svg>
-    </button>
-  </div>
-</div>
-</div>
-
 <div id="toastHost" aria-live="polite"></div>
 
 <script>
@@ -4783,7 +4726,6 @@ const listTopbar = document.getElementById('listTopbar');
 const homeNoResults = document.getElementById('homeNoResults');
 const toolView = document.getElementById('toolView');
 const toolViewCurrent = document.getElementById('toolViewCurrent');
-const shareFooter = document.querySelector('.share-footer');
 
 function tabById(id){ return TABS.find(t=>t.id===id); }
 
@@ -5197,12 +5139,10 @@ function openTool(id){
   toolView.style.setProperty('--accent', t ? t.accent : 'var(--ink)');
   if(homeStage) homeStage.classList.add('is-active');
   if(id==='currency' && !currencyIsLive) loadCurrencies();
-  if(shareFooter) shareFooter.classList.add('visible');
 }
 function closeToolInline(){
   toolView.classList.remove('active');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  if(shareFooter) shareFooter.classList.remove('visible');
 }
 function hardResetHome(){
   savedListState = null;
@@ -5312,30 +5252,6 @@ async function copyText(text, label){
     window.prompt('Copy this manually (Ctrl/Cmd+C, then Enter):', text);
   }
 }
-
-/* ============================================================
-   SOCIAL SHARE BUTTONS
-   ============================================================ */
-document.querySelectorAll('.share-btn').forEach(btn=>{
-  btn.addEventListener('click', async ()=>{
-    const platform = btn.dataset.share;
-    const pageUrl = window.location.href.split('?')[0].split('#')[0];
-    const text = 'Measurely \u2014 Measuring Guide for all which can be measured!';
-    let shareUrl = '';
-    if(platform === 'whatsapp'){
-      shareUrl = 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + pageUrl);
-    } else if(platform === 'x'){
-      shareUrl = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(pageUrl) + '&text=' + encodeURIComponent(text);
-    } else if(platform === 'linkedin'){
-      shareUrl = 'https://www.linkedin.com/sharing/share-offsite/?url=' + encodeURIComponent(pageUrl);
-    } else if(platform === 'instagram'){
-      const ok = await copyToClipboard(pageUrl);
-      showToast(ok ? 'Link copied \u2014 paste it into Instagram \u2713' : 'Could not copy link', ok ? 'ok' : 'err');
-      return;
-    }
-    if(shareUrl) window.open(shareUrl, '_blank', 'noopener,noreferrer,width=600,height=520');
-  });
-});
 
 /* ============================================================
    SHAREABLE LINKS
