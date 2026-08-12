@@ -155,10 +155,26 @@
   .share-linkedin{background:#0A66C2;}
   .share-x{background:#111111;}
   .share-footer{
-    flex:0 0 auto;
-    display:flex; flex-direction:column; align-items:center; gap:8px;
-    max-width:920px; width:100%; margin:0 auto; padding:12px 20px;
-    border-top:1px solid var(--line);
+    position:fixed;
+    left:50%;
+    bottom:16px;
+    z-index:40;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    width:max-content; max-width:calc(100% - 32px);
+    margin:0; padding:10px 18px;
+    border-top:none;
+    border-radius:999px;
+    background:var(--white);
+    box-shadow:var(--shadow);
+    opacity:0;
+    transform:translateX(-50%) translateY(12px);
+    pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease;
+  }
+  .share-footer.visible{
+    opacity:1;
+    transform:translateX(-50%) translateY(0);
+    pointer-events:auto;
   }
   .share-footer-label{
     font-family:'Space Grotesk', sans-serif;
@@ -693,11 +709,6 @@
 <div class="app-shell">
 <header class="top">
   <div class="wrap">
-    <div class="header-top-row">
-      <button id="headerHomeBtn" class="header-icon-btn" title="Home" aria-label="Go home">🏠</button>
-      <button id="headerBrowseBtn" class="header-icon-btn" title="Browse all tools" aria-label="Browse all tools">📋</button>
-      <button id="themeToggle" class="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
-    </div>
     <div class="header-row">
       <div class="header-title-block">
         <h1>Measurely <button id="searchToggleBtn" class="search-toggle-btn" style="display:none;" title="Search" aria-label="Open search">🔍</button></h1>
@@ -4772,6 +4783,7 @@ const listTopbar = document.getElementById('listTopbar');
 const homeNoResults = document.getElementById('homeNoResults');
 const toolView = document.getElementById('toolView');
 const toolViewCurrent = document.getElementById('toolViewCurrent');
+const shareFooter = document.querySelector('.share-footer');
 
 function tabById(id){ return TABS.find(t=>t.id===id); }
 
@@ -4875,8 +4887,6 @@ function browseAllTools(){
   expandSearchUI();
 }
 document.getElementById('browseAllBtn').addEventListener('click', browseAllTools);
-document.getElementById('headerBrowseBtn').addEventListener('click', browseAllTools);
-document.getElementById('headerHomeBtn').addEventListener('click', ()=>hardResetHome());
 
 /* ---- Search collapse-to-magnifying-glass, once a specific tool opens ---- */
 const searchWrapEl = document.getElementById('searchWrap');
@@ -5187,10 +5197,12 @@ function openTool(id){
   toolView.style.setProperty('--accent', t ? t.accent : 'var(--ink)');
   if(homeStage) homeStage.classList.add('is-active');
   if(id==='currency' && !currencyIsLive) loadCurrencies();
+  if(shareFooter) shareFooter.classList.add('visible');
 }
 function closeToolInline(){
   toolView.classList.remove('active');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  if(shareFooter) shareFooter.classList.remove('visible');
 }
 function hardResetHome(){
   savedListState = null;
@@ -5300,16 +5312,6 @@ async function copyText(text, label){
     window.prompt('Copy this manually (Ctrl/Cmd+C, then Enter):', text);
   }
 }
-
-/* ============================================================
-   DARK MODE TOGGLE (session only, no persistence)
-   ============================================================ */
-const themeToggle = document.getElementById('themeToggle');
-themeToggle.addEventListener('click', ()=>{
-  const isDark = document.documentElement.dataset.theme === 'dark';
-  document.documentElement.dataset.theme = isDark ? '' : 'dark';
-  themeToggle.textContent = isDark ? '🌙' : '☀️';
-});
 
 /* ============================================================
    SOCIAL SHARE BUTTONS
