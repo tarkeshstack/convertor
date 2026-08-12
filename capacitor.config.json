@@ -1,0 +1,12 @@
+{
+  "appId": "com.measurely.app",
+  "appName": "Measurely",
+  "webDir": "www",
+  "backgroundColor": "#F1E4D0",
+  "android": {
+    "backgroundColor": "#F1E4D0"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
