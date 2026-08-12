@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Measurely</string>
+    <string name="title_activity_main">Measurely</string>
+    <string name="package_name">com.measurely.app</string>
+    <string name="custom_url_scheme">com.measurely.app</string>
+</resources>

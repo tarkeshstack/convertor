@@ -8235,5 +8235,56 @@ window.__metalweightCtrl = buildSimpleConverter('metalweight', METALWEIGHT_UNITS
   showToast('Loaded from shared link', 'ok');
 })();
 </script>
+
+<script>
+/* ============================================================
+   CAPACITOR NATIVE BRIDGE (Android/iOS app shell)
+   No-op when running as a plain website — window.Capacitor is
+   only defined when the page is loaded inside the native app.
+   ============================================================ */
+(function(){
+  if(!window.Capacitor) return;
+
+  function loadPlugin(src){
+    return new Promise(function(resolve){
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = resolve;
+      document.body.appendChild(s);
+    });
+  }
+
+  Promise.all([
+    loadPlugin('capacitor-plugins/app.js'),
+    loadPlugin('capacitor-plugins/status-bar.js')
+  ]).then(function(){
+    const CapApp = window.capacitorApp && window.capacitorApp.App;
+    const CapStatusBar = window.capacitorStatusBar && window.capacitorStatusBar.StatusBar;
+
+    function applyStatusBarTheme(){
+      if(!CapStatusBar) return;
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      CapStatusBar.setBackgroundColor({ color: isDark ? '#1C130C' : '#F1E4D0' }).catch(function(){});
+      CapStatusBar.setStyle({ style: isDark ? 'Dark' : 'Light' }).catch(function(){});
+    }
+    applyStatusBarTheme();
+    const themeToggleBtn = document.getElementById('themeToggle');
+    if(themeToggleBtn) themeToggleBtn.addEventListener('click', function(){ setTimeout(applyStatusBarTheme, 0); });
+
+    if(CapApp){
+      // Hardware back button: close an open tool first, otherwise exit the app.
+      CapApp.addListener('backButton', function(){
+        const toolView = document.getElementById('toolView');
+        if(toolView && toolView.classList.contains('active')){
+          if(typeof goHome === 'function') goHome();
+        } else {
+          CapApp.exitApp();
+        }
+      });
+    }
+  });
+})();
+</script>
 </body>
 </html>

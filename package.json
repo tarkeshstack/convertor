@@ -1,0 +1,20 @@
+{
+  "name": "measurely",
+  "version": "1.0.0",
+  "description": "Measurely — Measuring & Conversion Guide for All Which Can Be Measured",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync",
+    "open:android": "cap open android",
+    "build:android": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/status-bar": "^7.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
+}
