@@ -26,7 +26,7 @@ const iconSvgBg = `
 
 const splashSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
-  <rect width="2732" height="2732" fill="#F1E4D0"/>
+  <rect width="2732" height="2732" fill="#FFFFFF"/>
   <rect x="1116" y="1116" width="500" height="500" rx="110" fill="#6F4E37"/>
   <text x="1366" y="1465" font-size="270" text-anchor="middle" fill="#F3E9DD" font-family="Arial, sans-serif" font-weight="bold">&#8644;</text>
 </svg>
@@ -34,9 +34,9 @@ const splashSvg = `
 
 const splashSvgDark = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
-  <rect width="2732" height="2732" fill="#1C130C"/>
-  <rect x="1116" y="1116" width="500" height="500" rx="110" fill="#D8A876"/>
-  <text x="1366" y="1465" font-size="270" text-anchor="middle" fill="#1C130C" font-family="Arial, sans-serif" font-weight="bold">&#8644;</text>
+  <rect width="2732" height="2732" fill="#FFFFFF"/>
+  <rect x="1116" y="1116" width="500" height="500" rx="110" fill="#6F4E37"/>
+  <text x="1366" y="1465" font-size="270" text-anchor="middle" fill="#F3E9DD" font-family="Arial, sans-serif" font-weight="bold">&#8644;</text>
 </svg>
 `;
 
