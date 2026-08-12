@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Measurely — Measuring Guide for All Which Can Be Measured</title>
 <meta name="description" content="Measurely: a free measuring & conversion guide covering currency, timezones, land measurement, distance, weight, temperature, clothing/shirt/shoe/socks/kids sizing with Indian sizing, screen size, storage, and more.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect rx='22' width='100' height='100' fill='%236F4E37'/%3E%3Ctext x='50' y='66' font-size='54' text-anchor='middle' fill='%23F3E9DD' font-family='Arial, sans-serif'%3E⇄%3C/text%3E%3C/svg%3E">
@@ -104,13 +104,13 @@
   .wrap{max-width:920px;margin:0 auto;padding:0 20px;}
 
   header.top{
-    padding:36px 0 12px;
+    padding:max(36px, calc(env(safe-area-inset-top, 0px) + 14px)) 0 12px;
     position:relative;
     overflow:hidden;
     transition:padding .2s ease;
   }
   .app-shell.browsing header.top{
-    padding:16px 0 8px;
+    padding:max(16px, calc(env(safe-area-inset-top, 0px) + 10px)) 0 8px;
   }
   header.top::before{
     content:'';
@@ -8240,11 +8240,15 @@ window.__metalweightCtrl = buildSimpleConverter('metalweight', METALWEIGHT_UNITS
   ]).then(function(){
     const CapApp = window.capacitorApp && window.capacitorApp.App;
     const CapStatusBar = window.capacitorStatusBar && window.capacitorStatusBar.StatusBar;
+    const CapStatusBarStyle = window.capacitorStatusBar && window.capacitorStatusBar.Style;
 
     function applyStatusBarTheme(){
       if(!CapStatusBar) return;
+      // Reserve space for the status bar instead of drawing the page under it,
+      // so the header never overlaps the clock/battery/notification icons.
+      CapStatusBar.setOverlaysWebView({ overlay: false }).catch(function(){});
       CapStatusBar.setBackgroundColor({ color: '#FFFFFF' }).catch(function(){});
-      CapStatusBar.setStyle({ style: 'Light' }).catch(function(){});
+      CapStatusBar.setStyle({ style: CapStatusBarStyle ? CapStatusBarStyle.Light : 'LIGHT' }).catch(function(){});
     }
     applyStatusBarTheme();
 
