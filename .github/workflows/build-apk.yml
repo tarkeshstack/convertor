@@ -6,6 +6,9 @@ on:
       - '**'
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,3 +39,16 @@ jobs:
         with:
           name: settle-in-uk-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Rename APK for release
+        working-directory: android/app/build/outputs/apk/debug
+        run: cp app-debug.apk settle-in-uk-debug-${{ github.run_number }}.apk
+
+      - name: Publish APK as a release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Settle In UK debug APK (build ${{ github.run_number }})
+          body: Auto-built debug APK from commit ${{ github.sha }}.
+          files: android/app/build/outputs/apk/debug/settle-in-uk-debug-${{ github.run_number }}.apk
+          prerelease: true
