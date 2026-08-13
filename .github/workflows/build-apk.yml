@@ -1,0 +1,54 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: settle-in-uk-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Rename APK for release
+        working-directory: android/app/build/outputs/apk/debug
+        run: cp app-debug.apk settle-in-uk-debug-${{ github.run_number }}.apk
+
+      - name: Publish APK as a release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Settle In UK debug APK (build ${{ github.run_number }})
+          body: Auto-built debug APK from commit ${{ github.sha }}.
+          files: android/app/build/outputs/apk/debug/settle-in-uk-debug-${{ github.run_number }}.apk
+          prerelease: true

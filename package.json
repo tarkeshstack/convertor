@@ -1,7 +1,7 @@
 {
-  "name": "measurely",
+  "name": "settle-in-uk",
   "version": "1.0.0",
-  "description": "Measurely — Measuring & Conversion Guide for All Which Can Be Measured",
+  "description": "Settle In UK — Free Step-by-Step Guide to Moving and Settling in the United Kingdom",
   "private": true,
   "scripts": {
     "sync": "cap sync",

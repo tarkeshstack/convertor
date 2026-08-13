@@ -1,4 +1,4 @@
-package com.measurely.app;
+package com.tarkeshstack.settleinuk;
 
 import com.getcapacitor.BridgeActivity;
 

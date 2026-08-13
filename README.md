@@ -1,18 +1,18 @@
-# Measurely — Mobile App
+# Settle In UK — Mobile App
 
-Measurely is packaged as a native Android app using [Capacitor](https://capacitorjs.com/), wrapping the existing web app (`www/index.html`) in a native WebView shell.
+Settle In UK is packaged as a native Android app using [Capacitor](https://capacitorjs.com/), wrapping the existing web guide ([tarkeshstack.github.io/onboarding](https://tarkeshstack.github.io/onboarding/), `www/index.html`) in a native WebView shell.
 
 ## Project layout
 
 - `www/index.html` — the web app (unchanged UI/logic, plus a small native bridge script at the bottom for the hardware back button and status bar theming)
-- `capacitor.config.json` — Capacitor app config (app id `com.measurely.app`, app name `Measurely`)
+- `capacitor.config.json` — Capacitor app config (app id `com.tarkeshstack.settleinuk`, app name `Settle In UK`)
 - `android/` — generated native Android Studio project
 - `resources/`, `assets-src/` — source icon/splash images used to generate the Android launcher icons and splash screens
 - `scripts/gen-icon.js` — regenerates the source icon/splash PNGs from SVG (uses `sharp`, install it as a dev dependency if you need to re-run this)
 
 ## Building the app
 
-Requires Node.js, the Android SDK (via Android Studio), and a JDK 17+.
+Requires Node.js, the Android SDK (via Android Studio), and a JDK 21+.
 
 ```bash
 npm install
@@ -30,6 +30,8 @@ cd android
 # output: android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+A GitHub Actions workflow (`.github/workflows/build-apk.yml`) also builds the debug APK on every push and on demand, and uploads it as a downloadable artifact — handy in environments without a local Android SDK.
+
 ## Regenerating icons/splash screens
 
 ```bash
@@ -40,5 +42,5 @@ npx capacitor-assets generate --android
 
 ## Native features wired up
 
-- Hardware back button: closes an open tool and returns home instead of exiting the app; exits only from the home screen (`www/index.html`, native bridge script).
-- Status bar color/style follows the app's light/dark theme toggle.
+- Hardware back button: steps back through in-page history, and exits from the top of the stack (`www/index.html`, native bridge script).
+- Status bar color/style matches the app's navy header.
