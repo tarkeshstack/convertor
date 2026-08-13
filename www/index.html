@@ -1567,6 +1567,8 @@ window.addEventListener('afterprint', () => {
    ============================================================ */
 (function(){
   if(!window.Capacitor) return;
+  // Status bar color/style/overlay are set natively at startup from
+  // capacitor.config.json (plugins.StatusBar) — no runtime call needed.
 
   function loadPlugin(src){
     return new Promise(function(resolve){
@@ -1578,28 +1580,17 @@ window.addEventListener('afterprint', () => {
     });
   }
 
-  Promise.all([
-    loadPlugin('capacitor-plugins/app.js'),
-    loadPlugin('capacitor-plugins/status-bar.js')
-  ]).then(function(){
+  loadPlugin('capacitor-plugins/app.js').then(function(){
     const CapApp = window.capacitorApp && window.capacitorApp.App;
-    const CapStatusBar = window.capacitorStatusBar && window.capacitorStatusBar.StatusBar;
-
-    if(CapStatusBar){
-      CapStatusBar.setBackgroundColor({ color: '#122040' }).catch(function(){});
-      CapStatusBar.setStyle({ style: 'Dark' }).catch(function(){});
-    }
-
-    if(CapApp){
-      // Hardware back button: step back through in-page history, otherwise exit.
-      CapApp.addListener('backButton', function(){
-        if(window.history.length > 1){
-          window.history.back();
-        } else {
-          CapApp.exitApp();
-        }
-      });
-    }
+    if(!CapApp) return;
+    // Hardware back button: step back through in-page history, otherwise exit.
+    CapApp.addListener('backButton', function(){
+      if(window.history.length > 1){
+        window.history.back();
+      } else {
+        CapApp.exitApp();
+      }
+    });
   });
 })();
 </script>
