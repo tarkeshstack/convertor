@@ -12,7 +12,7 @@ Settle In UK is packaged as a native Android app using [Capacitor](https://capac
 
 ## Building the app
 
-Requires Node.js, the Android SDK (via Android Studio), and a JDK 17+.
+Requires Node.js, the Android SDK (via Android Studio), and a JDK 21+.
 
 ```bash
 npm install
