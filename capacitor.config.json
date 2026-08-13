@@ -1,10 +1,10 @@
 {
-  "appId": "com.measurely.app",
-  "appName": "Measurely",
+  "appId": "com.tarkeshstack.settleinuk",
+  "appName": "Settle In UK",
   "webDir": "www",
-  "backgroundColor": "#F1E4D0",
+  "backgroundColor": "#EDEFE7",
   "android": {
-    "backgroundColor": "#F1E4D0"
+    "backgroundColor": "#EDEFE7"
   },
   "server": {
     "androidScheme": "https"

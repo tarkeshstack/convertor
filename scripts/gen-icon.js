@@ -5,38 +5,49 @@ const path = require('path');
 const outDir = path.join(__dirname, '..', 'assets-src');
 fs.mkdirSync(outDir, { recursive: true });
 
+const INK = '#122040';
+const INK_2 = '#1c2f57';
+const GOLD = '#A9843F';
+const PAPER = '#EDEFE7';
+
+// Full launcher icon (legacy, non-adaptive): navy rounded-square badge with a
+// gold ring "UK" emblem, matching the site's own brand mark (.flag / .wemblem).
 const iconSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect width="1024" height="1024" rx="225" fill="#6F4E37"/>
-  <text x="512" y="660" font-size="560" text-anchor="middle" fill="#F3E9DD" font-family="Arial, sans-serif" font-weight="bold">&#8644;</text>
+  <rect width="1024" height="1024" rx="225" fill="${INK}"/>
+  <circle cx="512" cy="512" r="330" fill="none" stroke="${GOLD}" stroke-width="44"/>
+  <text x="512" y="512" font-size="260" text-anchor="middle" dominant-baseline="central" fill="${GOLD}" font-family="Georgia, 'Times New Roman', serif" font-weight="700">UK</text>
 </svg>
 `;
 
+// Adaptive icon foreground: same emblem, transparent background.
 const iconSvgFg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <text x="512" y="640" font-size="460" text-anchor="middle" fill="#F3E9DD" font-family="Arial, sans-serif" font-weight="bold">&#8644;</text>
+  <circle cx="512" cy="512" r="330" fill="none" stroke="${GOLD}" stroke-width="44"/>
+  <text x="512" y="512" font-size="260" text-anchor="middle" dominant-baseline="central" fill="${GOLD}" font-family="Georgia, 'Times New Roman', serif" font-weight="700">UK</text>
 </svg>
 `;
 
+// Adaptive icon background: flat navy fill.
 const iconSvgBg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect width="1024" height="1024" fill="#6F4E37"/>
+  <rect width="1024" height="1024" fill="${INK}"/>
 </svg>
 `;
 
 const splashSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
-  <rect width="2732" height="2732" fill="#F1E4D0"/>
-  <rect x="1116" y="1116" width="500" height="500" rx="110" fill="#6F4E37"/>
-  <text x="1366" y="1465" font-size="270" text-anchor="middle" fill="#F3E9DD" font-family="Arial, sans-serif" font-weight="bold">&#8644;</text>
+  <rect width="2732" height="2732" fill="${PAPER}"/>
+  <circle cx="1366" cy="1366" r="260" fill="${INK}" stroke="${GOLD}" stroke-width="14"/>
+  <text x="1366" y="1366" font-size="210" text-anchor="middle" dominant-baseline="central" fill="${GOLD}" font-family="Georgia, 'Times New Roman', serif" font-weight="700">UK</text>
 </svg>
 `;
 
 const splashSvgDark = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
-  <rect width="2732" height="2732" fill="#1C130C"/>
-  <rect x="1116" y="1116" width="500" height="500" rx="110" fill="#D8A876"/>
-  <text x="1366" y="1465" font-size="270" text-anchor="middle" fill="#1C130C" font-family="Arial, sans-serif" font-weight="bold">&#8644;</text>
+  <rect width="2732" height="2732" fill="#0B1526"/>
+  <circle cx="1366" cy="1366" r="260" fill="${INK_2}" stroke="${GOLD}" stroke-width="14"/>
+  <text x="1366" y="1366" font-size="210" text-anchor="middle" dominant-baseline="central" fill="${GOLD}" font-family="Georgia, 'Times New Roman', serif" font-weight="700">UK</text>
 </svg>
 `;
 
