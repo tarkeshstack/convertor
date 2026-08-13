@@ -1,4 +1,4 @@
-package com.measurely.app;
+package com.wordly.app;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -1,10 +1,10 @@
 {
-  "appId": "com.measurely.app",
-  "appName": "Measurely",
+  "appId": "com.wordly.app",
+  "appName": "Wordly",
   "webDir": "www",
-  "backgroundColor": "#F1E4D0",
+  "backgroundColor": "#FDFCFA",
   "android": {
-    "backgroundColor": "#F1E4D0"
+    "backgroundColor": "#FDFCFA"
   },
   "server": {
     "androidScheme": "https"

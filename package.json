@@ -1,7 +1,7 @@
 {
-  "name": "measurely",
+  "name": "wordly",
   "version": "1.0.0",
-  "description": "Measurely — Measuring & Conversion Guide for All Which Can Be Measured",
+  "description": "Wordly — English to Indian Languages dictionary and live translator",
   "private": true,
   "scripts": {
     "sync": "cap sync",
