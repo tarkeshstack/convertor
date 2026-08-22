@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
@@ -29,6 +30,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,16 +63,14 @@ fun CommandManagerScreen(
 ) {
     Scaffold(
         topBar = {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                }
-                Spacer(Modifier.width(8.dp))
-                Text("Custom Commands", style = MaterialTheme.typography.titleLarge)
-            }
+            TopAppBar(
+                title = { Text("Custom Commands") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
         },
     ) { padding ->
         Column(
@@ -146,7 +146,8 @@ private fun AddCommandForm(
     var deepLinkUri by remember { mutableStateOf("") }
     var deepLinkPackage by remember { mutableStateOf("") }
     var placeholderValue by remember { mutableStateOf("") }
-    var appPickerExpanded by remember { mutableStateOf(false) }
+    var appPickerOpen by remember { mutableStateOf(false) }
+    var targetAppPickerOpen by remember { mutableStateOf(false) }
     var suggestionsExpanded by remember { mutableStateOf(false) }
     var justCaptured by remember { mutableStateOf(false) }
 
@@ -222,22 +223,24 @@ private fun AddCommandForm(
 
         when (kind) {
             CustomCommandKind.OPEN_APP -> {
-                Box {
-                    OutlinedButton(onClick = { appPickerExpanded = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(selectedApp?.label ?: "Choose an app…")
-                    }
-                    DropdownMenu(expanded = appPickerExpanded, onDismissRequest = { appPickerExpanded = false }) {
-                        allApps.forEach { app ->
-                            DropdownMenuItem(
-                                text = { Text(app.label) },
-                                onClick = {
-                                    selectedApp = app
-                                    if (label.isBlank()) label = app.label
-                                    appPickerExpanded = false
-                                },
-                            )
-                        }
-                    }
+                OutlinedButton(
+                    onClick = { appPickerOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Filled.Apps, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(selectedApp?.label ?: "Search for an app…")
+                }
+                if (appPickerOpen) {
+                    AppPickerDialog(
+                        apps = allApps,
+                        onDismiss = { appPickerOpen = false },
+                        onSelect = { app ->
+                            selectedApp = app
+                            if (label.isBlank()) label = app.label
+                            appPickerOpen = false
+                        },
+                    )
                 }
             }
             CustomCommandKind.DEEP_LINK -> {
@@ -322,13 +325,31 @@ private fun AddCommandForm(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = deepLinkPackage,
-                    onValueChange = { deepLinkPackage = it },
-                    label = { Text("Target app package (optional, e.g. com.example.app)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = deepLinkPackage,
+                        onValueChange = { deepLinkPackage = it },
+                        label = { Text("Target app package (optional)") },
+                        placeholder = { Text("e.g. com.example.app") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedButton(onClick = { targetAppPickerOpen = true }) {
+                        Icon(Icons.Filled.Apps, contentDescription = "Search for an app")
+                    }
+                }
+                if (targetAppPickerOpen) {
+                    AppPickerDialog(
+                        apps = allApps,
+                        title = "Restrict to which app?",
+                        onDismiss = { targetAppPickerOpen = false },
+                        onSelect = { app ->
+                            deepLinkPackage = app.packageName
+                            targetAppPickerOpen = false
+                        },
+                    )
+                }
             }
         }
 

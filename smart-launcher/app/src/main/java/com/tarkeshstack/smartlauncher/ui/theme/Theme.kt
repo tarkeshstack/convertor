@@ -7,15 +7,33 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
 private val DarkColors = darkColorScheme(
-    primary = LauncherBlueLight,
-    background = LauncherBackground,
-    surface = LauncherSurface,
-    onSurface = LauncherOnSurface,
-    onBackground = LauncherOnSurface,
+    primary = LauncherPrimaryDark,
+    onPrimary = LauncherOnPrimaryDark,
+    primaryContainer = LauncherPrimaryContainerDark,
+    onPrimaryContainer = LauncherOnPrimaryContainerDark,
+    secondary = LauncherSecondaryDark,
+    onSecondary = LauncherOnSecondaryDark,
+    background = LauncherBackgroundDark,
+    surface = LauncherSurfaceDark,
+    surfaceVariant = LauncherSurfaceVariantDark,
+    onSurface = LauncherOnSurfaceDark,
+    onBackground = LauncherOnSurfaceDark,
+    outline = LauncherOutlineDark,
 )
 
 private val LightColors = lightColorScheme(
-    primary = LauncherBlue,
+    primary = LauncherPrimaryLight,
+    onPrimary = LauncherOnPrimaryLight,
+    primaryContainer = LauncherPrimaryContainerLight,
+    onPrimaryContainer = LauncherOnPrimaryContainerLight,
+    secondary = LauncherSecondaryLight,
+    onSecondary = LauncherOnSecondaryLight,
+    background = LauncherBackgroundLight,
+    surface = LauncherSurfaceLight,
+    surfaceVariant = LauncherSurfaceVariantLight,
+    onSurface = LauncherOnSurfaceLight,
+    onBackground = LauncherOnSurfaceLight,
+    outline = LauncherOutlineLight,
 )
 
 @Composable
