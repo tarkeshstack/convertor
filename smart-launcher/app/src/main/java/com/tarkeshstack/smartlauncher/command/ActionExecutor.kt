@@ -7,6 +7,8 @@ import androidx.core.net.toUri
 import com.tarkeshstack.smartlauncher.data.ContactsRepository
 import com.tarkeshstack.smartlauncher.data.InstalledAppsRepository
 import com.tarkeshstack.smartlauncher.model.ActionType
+import com.tarkeshstack.smartlauncher.model.CustomCommand
+import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.model.ParsedCommand
 import java.net.URLEncoder
 
@@ -55,13 +57,33 @@ class ActionExecutor(
         ActionType.EMAIL -> email(command.target.orEmpty(), command.extra)
         ActionType.SHOP_SEARCH -> shopOnAmazon(command.target.orEmpty())
         ActionType.SEARCH_IN_APP -> searchInApp(command.target.orEmpty(), command.extra.orEmpty())
-        ActionType.OPEN_APP, ActionType.NONE -> ExecutionResult.Failed("Nothing to do")
+        // CUSTOM is resolved and run directly via runCustomCommand() by the caller,
+        // which has the CustomCommand list this executor doesn't hold; unreachable here.
+        ActionType.CUSTOM, ActionType.OPEN_APP, ActionType.NONE -> ExecutionResult.Failed("Nothing to do")
     }
 
     fun openApp(packageName: String): ExecutionResult {
         val intent = apps.launchIntentFor(packageName) ?: return ExecutionResult.Failed("Can't open that app")
         start(intent)
         return ExecutionResult.Launched
+    }
+
+    fun runCustomCommand(command: CustomCommand): ExecutionResult = when (command.kind) {
+        CustomCommandKind.OPEN_APP -> {
+            val pkg = command.packageName
+            if (pkg.isNullOrBlank()) ExecutionResult.Failed("This command has no app configured")
+            else openApp(pkg)
+        }
+        CustomCommandKind.DEEP_LINK -> {
+            val uri = command.deepLinkUri
+            if (uri.isNullOrBlank()) {
+                ExecutionResult.Failed("This command has no deep link configured")
+            } else if (!command.packageName.isNullOrBlank() && !apps.isInstalled(command.packageName)) {
+                ExecutionResult.AppNotInstalled(command.label)
+            } else {
+                viewDeepLink(uri, command.packageName)
+            }
+        }
     }
 
     private fun bookRide(destination: String?): ExecutionResult {
@@ -176,9 +198,9 @@ class ActionExecutor(
     private fun looksLikePhoneNumber(text: String): Boolean =
         text.count { it.isDigit() } >= 6 && text.all { it.isDigit() || it in "+-() " }
 
-    private fun viewDeepLink(uri: String, targetPackage: String): ExecutionResult {
+    private fun viewDeepLink(uri: String, targetPackage: String?): ExecutionResult {
         val intent = Intent(Intent.ACTION_VIEW, uri.toUri())
-        intent.setPackage(targetPackage)
+        if (!targetPackage.isNullOrBlank()) intent.setPackage(targetPackage)
         start(intent)
         return ExecutionResult.Launched
     }

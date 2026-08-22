@@ -7,9 +7,11 @@ import com.tarkeshstack.smartlauncher.command.ActionExecutor
 import com.tarkeshstack.smartlauncher.command.CommandParser
 import com.tarkeshstack.smartlauncher.command.ExecutionResult
 import com.tarkeshstack.smartlauncher.data.ContactsRepository
+import com.tarkeshstack.smartlauncher.data.CustomCommandRepository
 import com.tarkeshstack.smartlauncher.data.InstalledAppsRepository
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
+import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.ParsedCommand
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,15 +23,18 @@ data class UiState(
     val query: String = "",
     val allApps: List<AppInfo> = emptyList(),
     val filteredApps: List<AppInfo> = emptyList(),
+    val customCommands: List<CustomCommand> = emptyList(),
     val command: ParsedCommand? = null,
     val statusMessage: String? = null,
     val pendingContactsPermissionFor: String? = null,
+    val isListening: Boolean = false,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val appsRepo = InstalledAppsRepository(application)
     private val contactsRepo = ContactsRepository(application)
+    private val customCommandsRepo = CustomCommandRepository(application)
     private val executor = ActionExecutor(application, appsRepo, contactsRepo)
 
     private val _uiState = MutableStateFlow(UiState())
@@ -38,12 +43,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             val apps = appsRepo.loadLaunchableApps()
-            _uiState.update { it.copy(allApps = apps, filteredApps = apps) }
+            val customCommands = customCommandsRepo.loadAll()
+            _uiState.update { it.copy(allApps = apps, filteredApps = apps, customCommands = customCommands) }
         }
     }
 
     fun onQueryChanged(text: String) {
-        val command = CommandParser.parse(text)
+        // A user-defined command's trigger phrase wins over the built-in parser.
+        val customMatch = customCommandsRepo.findMatch(_uiState.value.customCommands, text)
+        val command = if (customMatch != null) {
+            ParsedCommand(ActionType.CUSTOM, customMatch.id, label = "▶ ${customMatch.label}")
+        } else {
+            CommandParser.parse(text)
+        }
         // For a plain "open <app>" (including the bare-app-name fallback), filter the
         // list by the extracted app name rather than the whole sentence — otherwise
         // "open uber" or "open latest mail in gmail" would never match "Uber"/"Gmail".
@@ -96,11 +108,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Runs the currently parsed command (Enter key / tapping the quick-action card). */
     fun runCommand() {
         val command = _uiState.value.command ?: return
-        if (command.action == ActionType.OPEN_APP) {
-            _uiState.value.filteredApps.firstOrNull()?.let { launchApp(it) }
-            return
+        when (command.action) {
+            ActionType.OPEN_APP -> {
+                _uiState.value.filteredApps.firstOrNull()?.let { launchApp(it) }
+            }
+            ActionType.CUSTOM -> {
+                val custom = _uiState.value.customCommands.firstOrNull { it.id == command.target }
+                if (custom != null) {
+                    runExecution { executor.runCustomCommand(custom) }
+                } else {
+                    _uiState.update { it.copy(statusMessage = "That saved command no longer exists") }
+                }
+            }
+            else -> runExecution { executor.execute(command) }
         }
-        runExecution { executor.execute(command) }
+    }
+
+    fun addCustomCommand(command: CustomCommand) {
+        viewModelScope.launch {
+            val updated = _uiState.value.customCommands + command
+            customCommandsRepo.saveAll(updated)
+            _uiState.update { it.copy(customCommands = updated) }
+        }
+    }
+
+    fun deleteCustomCommand(id: String) {
+        viewModelScope.launch {
+            val updated = _uiState.value.customCommands.filterNot { it.id == id }
+            customCommandsRepo.saveAll(updated)
+            _uiState.update { it.copy(customCommands = updated) }
+        }
+    }
+
+    fun onListeningChanged(listening: Boolean) {
+        _uiState.update { it.copy(isListening = listening) }
+    }
+
+    fun onVoiceError(message: String) {
+        _uiState.update { it.copy(isListening = false, statusMessage = message) }
     }
 
     private fun runExecution(block: suspend () -> ExecutionResult) {

@@ -9,11 +9,19 @@
     <!-- Optional: only requested at runtime, only used to resolve "call/message <name>" to a phone number -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
+    <!-- Optional: only requested at runtime, only used for the mic button's voice input -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <queries>
         <!-- Let us see every launchable app for search + open -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+
+        <!-- Needed to reach the system speech-recognition service for voice input -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
 
         <!-- Known integrations used for command execution -->

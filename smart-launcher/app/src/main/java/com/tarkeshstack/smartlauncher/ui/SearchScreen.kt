@@ -13,11 +13,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
@@ -49,6 +53,8 @@ fun SearchScreen(
     state: UiState,
     viewModel: MainViewModel,
     onRequestContactsPermission: (String) -> Unit,
+    onMicTapped: () -> Unit,
+    onOpenCommandManager: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -73,21 +79,48 @@ fun SearchScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
-            TextField(
-                value = state.query,
-                onValueChange = viewModel::onQueryChanged,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search apps or type a command…") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { viewModel.runCommand() }),
-                colors = TextFieldDefaults.colors(
-                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                ),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = state.query,
+                    onValueChange = viewModel::onQueryChanged,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Search, speak, or type a command…") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = {
+                        IconButton(onClick = onMicTapped) {
+                            Icon(
+                                if (state.isListening) Icons.Filled.Mic else Icons.Filled.MicOff,
+                                contentDescription = "Voice input",
+                                tint = if (state.isListening) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { viewModel.runCommand() }),
+                    colors = TextFieldDefaults.colors(
+                        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    ),
+                )
+                IconButton(onClick = onOpenCommandManager) {
+                    Icon(Icons.Filled.Settings, contentDescription = "Manage custom commands")
+                }
+            }
+
+            if (state.isListening) {
+                Text(
+                    "Listening…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
 
             val command = state.command
             if (command != null && command.action != ActionType.OPEN_APP && command.action != ActionType.NONE) {

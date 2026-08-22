@@ -12,6 +12,7 @@ enum class ActionType {
     EMAIL,
     SHOP_SEARCH,
     SEARCH_IN_APP,
+    CUSTOM,
     OPEN_APP,
     NONE,
 }

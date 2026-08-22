@@ -28,6 +28,37 @@ because that's the target app's own data, not something this app manages.
 Every command above only fires if the target app is actually installed; if it isn't,
 you get a clear "X isn't installed" message instead of a crash or a silent no-op.
 
+`find <query> in <app>` / `search <query> on <app>` — real search deep link for
+Amazon, YouTube, and Spotify; any other app opens with a message telling you to
+search inside it manually, since there's no way to construct a working search URI
+for an app we don't know.
+
+## Voice input
+
+Tap the mic icon to speak a search or command instead of typing it — it's
+transcribed by Android's system speech service (the same one behind Google's voice
+typing) and run immediately, exactly as if you'd typed it and hit Enter. Needs the
+`RECORD_AUDIO` permission, requested the first time you tap the mic; no audio is
+stored or sent anywhere by this app itself.
+
+## Custom commands
+
+Tap the gear icon to open the command manager and define your own trigger phrases.
+Each one is either:
+
+- **Open an app** — pick any installed app; typing/saying the phrase just launches it.
+- **Deep link / URI** — give a URI (e.g. `myapp://some/screen`) and, optionally, the
+  target app's package name to open it in specifically. Saying/typing the phrase
+  fires `ACTION_VIEW` on that URI.
+
+Custom commands are checked before the built-in parser, so your phrase wins even if
+it overlaps with a recognized pattern. They're stored locally in a JSON file in the
+app's private storage (`data/CustomCommandRepository.kt`) — nothing leaves the
+device. There's no step-recorder here: this app can't record and replay taps inside
+other apps (that needs Android's Accessibility Service, a much heavier and more
+fragile mechanism), so a custom command can only open an app or fire a deep link,
+not drive a multi-screen flow.
+
 ## Why it can't "log you into" an app
 
 Android sandboxes every app's data from every other app. There is no supported way
@@ -46,7 +77,12 @@ in on your device — logged in, if you're already logged in there.
 - `data/InstalledAppsRepository.kt` — lists launchable apps via `PackageManager`.
 - `data/ContactsRepository.kt` — optional, permission-gated name → phone number
   lookup for `call`/`message`.
-- `ui/SearchScreen.kt` — Jetpack Compose search box + quick-action card + app list.
+- `data/CustomCommandRepository.kt` — loads/saves user-defined commands as JSON.
+- `voice/VoiceInputController.kt` — wraps Android's `SpeechRecognizer` for the mic
+  button.
+- `ui/SearchScreen.kt` — Jetpack Compose search box + mic + quick-action card + app
+  list.
+- `ui/CommandManagerScreen.kt` — add/list/delete custom commands.
 
 ## Requirements
 
@@ -76,6 +112,7 @@ Maven repo where the sandbox that scaffolded this project didn't.
 - `READ_CONTACTS` — requested at runtime, only when you type `call <name>` or
   `message <name>` with a name rather than a number. Denying it just means you'll
   need to type the phone number directly.
+- `RECORD_AUDIO` — requested at runtime, only when you tap the mic icon.
 
-No other permissions are requested. This app does not use the internet itself; every
-deep link is handed off to the target app, which makes its own network calls.
+This app does not use the internet itself; every deep link is handed off to the
+target app, which makes its own network calls.
