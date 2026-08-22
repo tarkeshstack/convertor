@@ -44,7 +44,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onQueryChanged(text: String) {
         val command = CommandParser.parse(text)
-        val filtered = filterApps(text)
+        // For a plain "open <app>" (including the bare-app-name fallback), filter the
+        // list by the extracted app name rather than the whole sentence — otherwise
+        // "open uber" or "open latest mail in gmail" would never match "Uber"/"Gmail".
+        val appSearchText = if (command.action == ActionType.OPEN_APP) command.target ?: text else text
+        val filtered = filterApps(appSearchText)
         _uiState.update {
             it.copy(
                 query = text,
@@ -58,9 +62,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun filterApps(text: String): List<AppInfo> {
         val needle = text.trim().lowercase()
         if (needle.isEmpty()) return _uiState.value.allApps
+        val words = needle.split(Regex("\\s+")).filter { it.length >= 2 }
         return _uiState.value.allApps
-            .filter { it.label.lowercase().contains(needle) }
-            .sortedBy { it.label.lowercase().indexOf(needle) }
+            .filter { app ->
+                val label = app.label.lowercase()
+                label.contains(needle) || needle.contains(label) || words.any { label.contains(it) }
+            }
+            .sortedBy { app ->
+                val label = app.label.lowercase()
+                when {
+                    label == needle -> 0
+                    label.startsWith(needle) -> 1
+                    label.contains(needle) -> 2
+                    needle.contains(label) -> 3
+                    else -> 4
+                }
+            }
+    }
+
+    private fun findAppByName(name: String): AppInfo? {
+        val needle = name.trim().lowercase()
+        if (needle.isEmpty()) return null
+        return _uiState.value.allApps.firstOrNull { app ->
+            val label = app.label.lowercase()
+            label == needle || label.contains(needle) || needle.contains(label)
+        }
     }
 
     fun launchApp(app: AppInfo) {
@@ -94,6 +120,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 is ExecutionResult.Failed -> {
                     _uiState.update { it.copy(statusMessage = result.reason) }
+                }
+                is ExecutionResult.UnknownAppSearch -> {
+                    val match = findAppByName(result.appName)
+                    if (match != null) {
+                        executor.openApp(match.packageName)
+                        _uiState.update {
+                            it.copy(
+                                statusMessage = "${match.label} has no built-in search link here — opened it; " +
+                                    "try typing \"${result.query}\" inside",
+                                query = "",
+                                command = null,
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(statusMessage = "Couldn't find an app matching \"${result.appName}\"") }
+                    }
                 }
             }
         }

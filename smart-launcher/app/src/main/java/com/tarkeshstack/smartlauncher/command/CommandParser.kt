@@ -45,7 +45,22 @@ object CommandParser {
 
     private val call = Regex("""^(?:call|dial|phone)\s+(.+)$""", RegexOption.IGNORE_CASE)
 
+    private val searchInApp = Regex(
+        """^(?:find|search for|search|look for)\s+(.+?)\s+(?:in|on)\s+(.+)$""",
+        RegexOption.IGNORE_CASE,
+    )
+
     private val searchWeb = Regex("""^search(?:\s+for)?\s+(.+)$""", RegexOption.IGNORE_CASE)
+
+    // "open the latest mail in gmail" — there's no Android API to jump to a specific
+    // message, so this resolves to just opening the named app (the closest available
+    // action); the label makes that limitation explicit.
+    private val openMailIn = Regex(
+        """^open\s+(?:the\s+)?(?:latest|newest|last|new|unread)?\s*(?:mail|email|inbox|messages?)\s+(?:in|on|from)\s+(.+)$""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private val openApp = Regex("""^open\s+(?:the\s+)?(?:app\s+)?(.+)$""", RegexOption.IGNORE_CASE)
 
     fun parse(rawInput: String): ParsedCommand {
         val text = rawInput.trim()
@@ -110,9 +125,31 @@ object CommandParser {
             return ParsedCommand(ActionType.CALL, who, label = "Call $who")
         }
 
+        searchInApp.matchEntire(text)?.let {
+            val query = it.groupValues[1].trim()
+            val appName = it.groupValues[2].trim()
+            return ParsedCommand(
+                ActionType.SEARCH_IN_APP, query, appName,
+                label = "Find \"$query\" in $appName",
+            )
+        }
+
         searchWeb.matchEntire(text)?.let {
             val query = it.groupValues[1].trim()
             return ParsedCommand(ActionType.SEARCH_WEB, query, label = "Search the web for \"$query\"")
+        }
+
+        openMailIn.matchEntire(text)?.let {
+            val appName = it.groupValues[1].trim().removeSuffix(" app")
+            return ParsedCommand(
+                ActionType.OPEN_APP, appName,
+                label = "Open $appName (can't jump to a specific email — Android doesn't expose that)",
+            )
+        }
+
+        openApp.matchEntire(text)?.let {
+            val appName = it.groupValues[1].trim().removeSuffix(" app")
+            return ParsedCommand(ActionType.OPEN_APP, appName, label = "Open $appName")
         }
 
         // No verb recognized: treat the whole string as an app-name / fuzzy search.

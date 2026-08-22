@@ -16,6 +16,8 @@ sealed class ExecutionResult {
     data class NeedsContactsPermission(val retryText: String) : ExecutionResult()
     data class ContactNotFound(val name: String) : ExecutionResult()
     data class Failed(val reason: String) : ExecutionResult()
+    /** No known search deep link for [appName]; caller should open the app by name instead. */
+    data class UnknownAppSearch(val appName: String, val query: String) : ExecutionResult()
 }
 
 /**
@@ -52,6 +54,7 @@ class ActionExecutor(
         ActionType.SEARCH_WEB -> searchWeb(command.target.orEmpty())
         ActionType.EMAIL -> email(command.target.orEmpty(), command.extra)
         ActionType.SHOP_SEARCH -> shopOnAmazon(command.target.orEmpty())
+        ActionType.SEARCH_IN_APP -> searchInApp(command.target.orEmpty(), command.extra.orEmpty())
         ActionType.OPEN_APP, ActionType.NONE -> ExecutionResult.Failed("Nothing to do")
     }
 
@@ -129,6 +132,20 @@ class ActionExecutor(
     private fun shopOnAmazon(query: String): ExecutionResult {
         if (!apps.isInstalled(PKG_AMAZON)) return ExecutionResult.AppNotInstalled("Amazon")
         return viewDeepLink("https://www.amazon.com/s?k=${encode(query)}", PKG_AMAZON)
+    }
+
+    /** Only a handful of apps expose a public search deep link; anything else falls back
+     *  to just opening the named app, since we can't construct a working search URI blind. */
+    private fun searchInApp(query: String, appNameRaw: String): ExecutionResult {
+        if (query.isBlank()) return ExecutionResult.Failed("Search for what?")
+        val appName = appNameRaw.trim().lowercase()
+        return when {
+            appName.contains("amazon") -> shopOnAmazon(query)
+            appName.contains("youtube") -> playOnYouTube(query)
+            appName.contains("spotify") -> playOnSpotify(query)
+            appName.isBlank() -> ExecutionResult.Failed("Search for \"$query\" in which app?")
+            else -> ExecutionResult.UnknownAppSearch(appNameRaw.trim(), query)
+        }
     }
 
     private fun email(to: String, subject: String?): ExecutionResult {
