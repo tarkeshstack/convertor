@@ -75,6 +75,10 @@ class VoiceInputController(
     }
 
     fun stopListening() {
+        // A session torn down mid-listen (e.g. the activity pausing to launch another app)
+        // never gets its normal onEndOfSpeech/onError callback, so without this the UI's
+        // "listening" flag can get stuck true forever and block any future restart.
+        if (recognizer != null) onListeningChanged(false)
         recognizer?.destroy()
         recognizer = null
     }

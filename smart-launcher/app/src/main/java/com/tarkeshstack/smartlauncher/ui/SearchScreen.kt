@@ -3,6 +3,7 @@ package com.tarkeshstack.smartlauncher.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,8 +19,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -54,6 +57,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
@@ -65,6 +69,8 @@ import com.tarkeshstack.smartlauncher.UiState
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.ConversationEntry
+import com.tarkeshstack.smartlauncher.ui.theme.LauncherGradientBottomLight
+import com.tarkeshstack.smartlauncher.ui.theme.LauncherGradientTopLight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,29 +136,44 @@ fun SearchScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
+                    containerColor = Color.Transparent,
                 ),
             )
         },
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
     ) { padding ->
         val isIdle = state.query.isBlank() && state.conversationLog.isEmpty() && state.command == null
+        val isDark = isSystemInDarkTheme()
+        val backgroundBrush = remember(isDark) {
+            if (isDark) {
+                Brush.verticalGradient(listOf(Color(0xFF0F0F14), Color(0xFF0F0F14)))
+            } else {
+                Brush.verticalGradient(listOf(LauncherGradientTopLight, LauncherGradientBottomLight))
+            }
+        }
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
+                .background(backgroundBrush)
                 .padding(padding),
         ) {
-            // The search bar sits roughly mid-screen rather than jammed under the header —
-            // this region is vertically centered, with the app list filling the rest below.
+            // The search bar sits roughly mid-screen rather than jammed under the header. This
+            // region scrolls internally (verticalScroll) so overflow from a long conversation
+            // transcript or the idle greeting never spills into — and hides — the app list below;
+            // it stays visually centered via Arrangement.Center since the scrollable column fills
+            // its full weighted slot.
             Box(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.Center,
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
                 ) {
                     if (isIdle) {
                         Surface(

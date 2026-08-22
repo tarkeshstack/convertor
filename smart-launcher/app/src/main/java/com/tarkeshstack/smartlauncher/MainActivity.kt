@@ -69,7 +69,12 @@ class MainActivity : ComponentActivity() {
             onListeningChanged = viewModel::onListeningChanged,
             onError = viewModel::onVoiceError,
             onNoSpeech = {
-                if (isWakeCycle && viewModel.uiState.value.wakeWordEnabled) {
+                // Falls back to passive wake listening whenever wake word is on — not just
+                // when the timed-out session was itself a wake scan. Without this, a command
+                // session that re-armed after a voice-triggered turn (isWakeCycle = false)
+                // would go silent forever the moment it timed out with nothing said, instead
+                // of dropping back to listening for "hey buddy".
+                if (viewModel.uiState.value.wakeWordEnabled) {
                     mainHandler.postDelayed({ startWakeListening() }, WAKE_RETRY_DELAY_MS)
                 }
             },
