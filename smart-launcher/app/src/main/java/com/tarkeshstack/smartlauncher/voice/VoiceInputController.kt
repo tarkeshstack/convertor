@@ -18,6 +18,9 @@ class VoiceInputController(
     private val onResult: (String) -> Unit,
     private val onListeningChanged: (Boolean) -> Unit,
     private val onError: (String) -> Unit,
+    /** Session ended with nothing usable — silence, timeout, or no recognizable speech.
+     *  Distinct from [onError]: this is the routine case, not a user-facing failure. */
+    private val onNoSpeech: () -> Unit = {},
 ) {
     private var recognizer: SpeechRecognizer? = null
 
@@ -45,7 +48,9 @@ class VoiceInputController(
 
             override fun onError(error: Int) {
                 onListeningChanged(false)
-                if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                    onNoSpeech()
+                } else {
                     onError("Didn't catch that — try again")
                 }
             }
@@ -55,7 +60,7 @@ class VoiceInputController(
                 val text = results
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()
-                if (!text.isNullOrBlank()) onResult(text)
+                if (!text.isNullOrBlank()) onResult(text) else onNoSpeech()
             }
 
             override fun onPartialResults(partialResults: Bundle?) {}

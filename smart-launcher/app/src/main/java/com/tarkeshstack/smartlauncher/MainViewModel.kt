@@ -35,6 +35,8 @@ data class UiState(
     val conversationLog: List<ConversationEntry> = emptyList(),
     val speechEnabled: Boolean = false,
     val pendingSpeech: SpeechRequest? = null,
+    val wakeWordEnabled: Boolean = false,
+    val pendingWakeResume: Boolean = false,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -173,8 +175,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(speechEnabled = !it.speechEnabled) }
     }
 
+    fun toggleWakeWord() {
+        _uiState.update { it.copy(wakeWordEnabled = !it.wakeWordEnabled) }
+    }
+
     fun consumeSpeechRequest() {
         _uiState.update { it.copy(pendingSpeech = null) }
+    }
+
+    fun consumeWakeResume() {
+        _uiState.update { it.copy(pendingWakeResume = false) }
     }
 
     fun clearConversation() {
@@ -182,16 +192,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Logs a turn (what you said/tapped, what happened) and, in conversation mode, queues
-     *  it to be spoken — re-listening afterward only if this turn came from voice. */
+     *  it to be spoken — re-listening afterward only if this turn came from voice. When wake
+     *  word is on, whichever path isn't already re-arming the mic resumes passive wake
+     *  listening once the turn is fully settled. */
     private fun completeTurn(userText: String, assistantText: String) {
         val wasVoice = pendingTurnWasVoice
         pendingTurnWasVoice = false
         _uiState.update { state ->
+            val speech = if (state.speechEnabled) {
+                SpeechRequest(
+                    text = assistantText,
+                    shouldRelisten = wasVoice,
+                    resumeWakeAfter = state.wakeWordEnabled && !wasVoice,
+                )
+            } else {
+                null
+            }
             state.copy(
                 conversationLog = state.conversationLog +
                     ConversationEntry(userText, isUser = true) +
                     ConversationEntry(assistantText, isUser = false),
-                pendingSpeech = if (state.speechEnabled) SpeechRequest(assistantText, shouldRelisten = wasVoice) else null,
+                pendingSpeech = speech,
+                pendingWakeResume = state.wakeWordEnabled && speech == null,
             )
         }
     }

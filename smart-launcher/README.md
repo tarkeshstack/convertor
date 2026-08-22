@@ -28,6 +28,16 @@ because that's the target app's own data, not something this app manages.
 Every command above only fires if the target app is actually installed; if it isn't,
 you get a clear "X isn't installed" message instead of a crash or a silent no-op.
 
+## Layout
+
+The search bar sits roughly mid-screen (with a short greeting when idle) rather than
+jammed under the header, with the app list filling the rest below it; the settings
+gear and the conversation-mode speaker icon stay up in the header. All settings —
+including the two voice toggles below — live on the Settings screen (gear icon),
+whose form is now one continuously scrollable list so a field near the bottom (e.g.
+the deep-link command's last two fields) scrolls up above the keyboard instead of
+being hidden behind it.
+
 ## Conversation mode
 
 Every turn — what you typed or said, and what the app did about it — is logged as a
@@ -41,6 +51,22 @@ can keep going without tapping it again each time. It's this app's own
 speech-to-text feeding straight back into another turn, not literally another app's
 voice-search button (see "Why 'audio search inside another app' works this way"
 below).
+
+### "Hey Buddy" wake word
+
+Turn it on in Settings (gear icon → Voice & Conversation). While enabled, the app
+passively listens in short cycles for "hey buddy" — say it alone and the app
+prompts "Yes?" and then listens for your command; say it with the command attached
+("hey buddy, open uber") and it acts immediately, no pause needed.
+
+This **only works while Smart Launcher is open in the foreground.** Android gives
+third-party apps no supported way to listen for a wake phrase, or launch themselves,
+while backgrounded — that requires a permanent foreground-service notification (a
+real battery and privacy cost), and even then reliably bringing the app to the front
+from the background is inconsistent across OEMs. So this pauses the instant you
+leave the app and resumes the moment you come back, exactly like conversation mode's
+relisten — it's the same passive-listening mechanism, just triggered by a phrase
+instead of a tap.
 
 ### Why "audio search inside another app" works this way
 
@@ -153,10 +179,12 @@ in on your device — logged in, if you're already logged in there.
   button.
 - `voice/VoiceOutputController.kt` — wraps Android's `TextToSpeech` for conversation
   mode's spoken replies.
+- `voice/WakePhraseDetector.kt` — matches "hey buddy" inside transcribed speech.
 - `model/Conversation.kt` — the transcript entry and speech-request types.
-- `ui/SearchScreen.kt` — header, search box + mic, quick-action card, conversation
-  transcript, app list.
-- `ui/CommandManagerScreen.kt` — add/list/delete custom commands.
+- `ui/SearchScreen.kt` — header, centered search box + mic, quick-action card,
+  conversation transcript, app list.
+- `ui/CommandManagerScreen.kt` — voice settings + add/list/delete custom commands,
+  as one scrollable list.
 - `ui/AppPickerDialog.kt` — searchable modal app list, used for "Open an app" and the
   deep-link command's target-app field.
 
@@ -188,7 +216,8 @@ Maven repo where the sandbox that scaffolded this project didn't.
 - `READ_CONTACTS` — requested at runtime, only when you type `call <name>` or
   `message <name>` with a name rather than a number. Denying it just means you'll
   need to type the phone number directly.
-- `RECORD_AUDIO` — requested at runtime, only when you tap the mic icon.
+- `RECORD_AUDIO` — requested at runtime, when you tap the mic icon or turn on the
+  "Hey Buddy" wake word in Settings.
 - `INTERNET` — install-time only, used exclusively by the "Browse for a link" mini
   browser in the command builder; the app makes no other network calls.
 

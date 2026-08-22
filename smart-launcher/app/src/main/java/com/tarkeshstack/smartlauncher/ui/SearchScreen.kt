@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -134,67 +135,107 @@ fun SearchScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
     ) { padding ->
+        val isIdle = state.query.isBlank() && state.conversationLog.isEmpty() && state.command == null
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
-                .padding(padding)
-                .padding(horizontal = 16.dp),
+                .padding(padding),
         ) {
-            TextField(
-                value = state.query,
-                onValueChange = viewModel::onQueryChanged,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                placeholder = { Text("Search, speak, or type a command…") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    IconButton(onClick = onMicTapped) {
-                        Icon(
-                            if (state.isListening) Icons.Filled.Mic else Icons.Filled.MicOff,
-                            contentDescription = "Voice input",
-                            tint = if (state.isListening) {
-                                MaterialTheme.colorScheme.secondary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
+            // The search bar sits roughly mid-screen rather than jammed under the header —
+            // this region is vertically centered, with the app list filling the rest below.
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                ) {
+                    if (isIdle) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(56.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.Bolt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(14.dp),
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "What do you want to do?",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(16.dp))
+                    }
+
+                    TextField(
+                        value = state.query,
+                        onValueChange = viewModel::onQueryChanged,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search, speak, or type a command…") },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        trailingIcon = {
+                            IconButton(onClick = onMicTapped) {
+                                Icon(
+                                    if (state.isListening) Icons.Filled.Mic else Icons.Filled.MicOff,
+                                    contentDescription = "Voice input",
+                                    tint = if (state.isListening) {
+                                        MaterialTheme.colorScheme.secondary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(20.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { viewModel.runCommand() }),
+                        colors = TextFieldDefaults.colors(
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
+                    )
+
+                    if (state.isListening) {
+                        Text(
+                            "Listening…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 8.dp),
                         )
                     }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(20.dp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { viewModel.runCommand() }),
-                colors = TextFieldDefaults.colors(
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-            )
 
-            if (state.isListening) {
-                Text(
-                    "Listening…",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 8.dp, start = 4.dp),
-                )
+                    val command = state.command
+                    if (command != null && command.action != ActionType.OPEN_APP && command.action != ActionType.NONE) {
+                        QuickActionCard(label = command.label, onClick = viewModel::runCommand)
+                    }
+
+                    if (state.conversationLog.isNotEmpty()) {
+                        ConversationTranscript(
+                            entries = state.conversationLog,
+                            onClear = viewModel::clearConversation,
+                        )
+                    }
+                }
             }
 
-            val command = state.command
-            if (command != null && command.action != ActionType.OPEN_APP && command.action != ActionType.NONE) {
-                QuickActionCard(label = command.label, onClick = viewModel::runCommand)
-            }
-
-            if (state.conversationLog.isNotEmpty()) {
-                ConversationTranscript(
-                    entries = state.conversationLog,
-                    onClear = viewModel::clearConversation,
-                )
-            }
-
-            LazyColumn(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+            ) {
                 items(state.filteredApps, key = { it.packageName }) { app ->
                     AppRow(app = app, onClick = { viewModel.launchApp(app) })
                 }
