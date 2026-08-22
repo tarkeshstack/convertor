@@ -12,6 +12,10 @@
     <!-- Optional: only requested at runtime, only used for the mic button's voice input -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Only used by the in-app mini browser (command builder's "Browse for a link"),
+         to load the pages you navigate to there -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <queries>
         <!-- Let us see every launchable app for search + open -->
         <intent>

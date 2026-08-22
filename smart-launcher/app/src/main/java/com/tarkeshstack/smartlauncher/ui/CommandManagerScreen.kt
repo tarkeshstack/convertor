@@ -1,5 +1,6 @@
 package com.tarkeshstack.smartlauncher.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,6 +46,8 @@ import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 import java.util.UUID
 
+private const val PLACEHOLDER = "REPLACE_ME"
+
 @Composable
 fun CommandManagerScreen(
     commands: List<CustomCommand>,
@@ -53,6 +56,7 @@ fun CommandManagerScreen(
     onConsumeCapturedLink: () -> Unit,
     onAdd: (CustomCommand) -> Unit,
     onDelete: (String) -> Unit,
+    onBrowseForLink: () -> Unit,
     onBack: () -> Unit,
 ) {
     Scaffold(
@@ -80,6 +84,7 @@ fun CommandManagerScreen(
                 pendingCapturedLink = pendingCapturedLink,
                 onConsumeCapturedLink = onConsumeCapturedLink,
                 onAdd = onAdd,
+                onBrowseForLink = onBrowseForLink,
             )
 
             Spacer(Modifier.height(16.dp))
@@ -132,6 +137,7 @@ private fun AddCommandForm(
     pendingCapturedLink: CapturedLink?,
     onConsumeCapturedLink: () -> Unit,
     onAdd: (CustomCommand) -> Unit,
+    onBrowseForLink: () -> Unit,
 ) {
     var phrase by remember { mutableStateOf("") }
     var label by remember { mutableStateOf("") }
@@ -139,20 +145,30 @@ private fun AddCommandForm(
     var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
     var deepLinkUri by remember { mutableStateOf("") }
     var deepLinkPackage by remember { mutableStateOf("") }
+    var placeholderValue by remember { mutableStateOf("") }
     var appPickerExpanded by remember { mutableStateOf(false) }
     var suggestionsExpanded by remember { mutableStateOf(false) }
     var justCaptured by remember { mutableStateOf(false) }
 
     val clipboardManager = LocalClipboardManager.current
 
-    // A link shared in from another app's Share sheet lands here pre-filled.
+    // A link captured from another app's Share sheet, or from the in-app browser,
+    // lands here pre-filled.
     LaunchedEffect(pendingCapturedLink) {
         val captured = pendingCapturedLink ?: return@LaunchedEffect
         kind = CustomCommandKind.DEEP_LINK
         deepLinkUri = captured.uri
         deepLinkPackage = captured.sourcePackage.orEmpty()
+        placeholderValue = ""
         justCaptured = true
         onConsumeCapturedLink()
+    }
+
+    val hasPlaceholder = deepLinkUri.contains(PLACEHOLDER)
+    val resolvedDeepLinkUri = if (hasPlaceholder && placeholderValue.isNotBlank()) {
+        deepLinkUri.replace(PLACEHOLDER, Uri.encode(placeholderValue.trim()))
+    } else {
+        deepLinkUri
     }
 
     Column(modifier = Modifier.padding(vertical = 12.dp)) {
@@ -165,7 +181,7 @@ private fun AddCommandForm(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
             ) {
                 Text(
-                    "Captured a link from another app — give it a trigger phrase and save.",
+                    "Captured a link — give it a trigger phrase and save.",
                     modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -226,57 +242,85 @@ private fun AddCommandForm(
             }
             CustomCommandKind.DEEP_LINK -> {
                 Text(
-                    "Not sure of the link? Open the app, find what you want, tap Share (or " +
-                        "Copy Link), then use one of these:",
+                    "Not sure of the link? Three ways to find one, no app-share needed:",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(bottom = 8.dp),
                 )
-                Row {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            val clip = clipboardManager.getText()?.text?.trim().orEmpty()
-                            if (clip.isNotBlank()) {
-                                val match = Regex("""[a-zA-Z][a-zA-Z0-9+.-]*://\S+""").find(clip)
-                                deepLinkUri = match?.value ?: clip
-                            }
-                        },
-                    ) {
-                        Text("Paste from clipboard")
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Box(modifier = Modifier.weight(1f)) {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { suggestionsExpanded = true },
-                        ) {
-                            Text("Suggestions")
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val clip = clipboardManager.getText()?.text?.trim().orEmpty()
+                        if (clip.isNotBlank()) {
+                            val match = Regex("""[a-zA-Z][a-zA-Z0-9+.-]*://\S+""").find(clip)
+                            deepLinkUri = match?.value ?: clip
+                            placeholderValue = ""
                         }
-                        DropdownMenu(
-                            expanded = suggestionsExpanded,
-                            onDismissRequest = { suggestionsExpanded = false },
-                        ) {
-                            DeepLinkSuggestions.all.forEach { suggestion ->
-                                DropdownMenuItem(
-                                    text = { Text("${suggestion.appLabel} — ${suggestion.description}") },
-                                    onClick = {
-                                        deepLinkUri = suggestion.uriTemplate
-                                        deepLinkPackage = suggestion.packageName.orEmpty()
-                                        suggestionsExpanded = false
-                                    },
-                                )
-                            }
+                    },
+                ) {
+                    Text("Paste from clipboard")
+                }
+                Spacer(Modifier.height(8.dp))
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { suggestionsExpanded = true },
+                    ) {
+                        Text("Suggestions")
+                    }
+                    DropdownMenu(
+                        expanded = suggestionsExpanded,
+                        onDismissRequest = { suggestionsExpanded = false },
+                    ) {
+                        DeepLinkSuggestions.all.forEach { suggestion ->
+                            DropdownMenuItem(
+                                text = { Text("${suggestion.appLabel} — ${suggestion.description}") },
+                                onClick = {
+                                    deepLinkUri = suggestion.uriTemplate
+                                    deepLinkPackage = suggestion.packageName.orEmpty()
+                                    placeholderValue = ""
+                                    suggestionsExpanded = false
+                                },
+                            )
                         }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onBrowseForLink,
+                ) {
+                    Text("Browse for a link — works even without an app's Share option")
+                }
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = deepLinkUri,
-                    onValueChange = { deepLinkUri = it },
+                    onValueChange = {
+                        deepLinkUri = it
+                        placeholderValue = ""
+                    },
                     label = { Text("Deep link URI (e.g. myapp://screen)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
+                if (hasPlaceholder) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = placeholderValue,
+                        onValueChange = { placeholderValue = it },
+                        label = { Text("Value to fill in (replaces $PLACEHOLDER in the link)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    Text(
+                        if (placeholderValue.isNotBlank()) {
+                            "Will save as: $resolvedDeepLinkUri"
+                        } else {
+                            "Type a value above — you never need to edit the link text itself."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = deepLinkPackage,
@@ -285,14 +329,6 @@ private fun AddCommandForm(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
-                if (deepLinkUri.contains("REPLACE_ME")) {
-                    Text(
-                        "Replace REPLACE_ME with what you actually want before saving.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
             }
         }
 
@@ -300,7 +336,7 @@ private fun AddCommandForm(
 
         val canSave = phrase.isNotBlank() && label.isNotBlank() && when (kind) {
             CustomCommandKind.OPEN_APP -> selectedApp != null
-            CustomCommandKind.DEEP_LINK -> deepLinkUri.isNotBlank()
+            CustomCommandKind.DEEP_LINK -> deepLinkUri.isNotBlank() && (!hasPlaceholder || placeholderValue.isNotBlank())
         }
 
         Button(
@@ -315,7 +351,7 @@ private fun AddCommandForm(
                             CustomCommandKind.OPEN_APP -> selectedApp?.packageName
                             CustomCommandKind.DEEP_LINK -> deepLinkPackage.trim().ifBlank { null }
                         },
-                        deepLinkUri = if (kind == CustomCommandKind.DEEP_LINK) deepLinkUri.trim() else null,
+                        deepLinkUri = if (kind == CustomCommandKind.DEEP_LINK) resolvedDeepLinkUri.trim() else null,
                     ),
                 )
                 phrase = ""
@@ -323,6 +359,7 @@ private fun AddCommandForm(
                 selectedApp = null
                 deepLinkUri = ""
                 deepLinkPackage = ""
+                placeholderValue = ""
                 justCaptured = false
             },
             enabled = canSave,

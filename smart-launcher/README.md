@@ -58,22 +58,33 @@ device.
 
 ### Finding a deep link without knowing the syntax
 
-The "Deep link / URI" form has three ways to fill in the URI field without hand-writing
-one:
+The "Deep link / URI" form has four ways to fill in the URI field without hand-writing
+one — none of them require the target app to support anything in particular:
 
 - **Share it in** — open the app you want, find the exact item/screen, tap its Share
   button, and pick "Smart Launcher" from the share sheet. This app registers as a
   share target (see the `SEND`/`text/plain` intent-filter in the manifest and
   `capture/ShareIntentParser.kt`); it pulls the link out of the shared text, and —
   when the sharing app supplies it — the source app's package too, then drops you
-  straight into the command form with both pre-filled.
+  straight into the command form with both pre-filled. Only works for apps that
+  offer *some* Share/Copy-Link action.
+- **Browse for a link** — a built-in mini browser (`ui/BrowseForLinkScreen.kt`, needs
+  the `INTERNET` permission, used only when you're actively in this screen) for when
+  an app has no Share option at all: navigate to the app's *website* version of what
+  you want and tap "Use this page's link." Since most apps' websites use the same
+  URL as their App Link, this often opens straight back into the native app too.
 - **Paste from clipboard** — for apps whose "Copy Link" doesn't go through Android's
   share sheet: copy the link there, then tap this button here.
 - **Suggestions** — a curated list of publicly documented link patterns for common
   apps (YouTube/Spotify/Amazon search, Instagram/X profiles, Telegram, Netflix,
-  Google Maps, the Play Store). Picking one fills in a template with a `REPLACE_ME`
-  placeholder you swap for your actual value; the form warns if you try to save one
-  unedited.
+  Google Maps, the Play Store).
+
+Suggestions and captured links can carry a `REPLACE_ME` placeholder for the part
+that's specific to what you want. You never edit that into the link text yourself —
+a separate "Value to fill in" field appears, you type the plain value there (e.g.
+`lofi beats`), and the app substitutes it into the real link before saving. The link
+field stays showing the template; Save is disabled until the placeholder's been
+filled in.
 
 There's no step-recorder here: this app can't record and replay taps inside
 other apps (that needs Android's Accessibility Service, a much heavier and more
@@ -99,6 +110,9 @@ in on your device — logged in, if you're already logged in there.
 - `data/ContactsRepository.kt` — optional, permission-gated name → phone number
   lookup for `call`/`message`.
 - `data/CustomCommandRepository.kt` — loads/saves user-defined commands as JSON.
+- `capture/ShareIntentParser.kt` — pulls a link out of an incoming Share intent.
+- `ui/BrowseForLinkScreen.kt` — in-app mini browser for capturing a link from any
+  app's website when it has no Share option.
 - `voice/VoiceInputController.kt` — wraps Android's `SpeechRecognizer` for the mic
   button.
 - `ui/SearchScreen.kt` — Jetpack Compose search box + mic + quick-action card + app
@@ -134,6 +148,8 @@ Maven repo where the sandbox that scaffolded this project didn't.
   `message <name>` with a name rather than a number. Denying it just means you'll
   need to type the phone number directly.
 - `RECORD_AUDIO` — requested at runtime, only when you tap the mic icon.
+- `INTERNET` — install-time only, used exclusively by the "Browse for a link" mini
+  browser in the command builder; the app makes no other network calls.
 
-This app does not use the internet itself; every deep link is handed off to the
-target app, which makes its own network calls.
+Outside the in-app browser, this app does not use the internet itself; every deep
+link is handed off to the target app, which makes its own network calls.

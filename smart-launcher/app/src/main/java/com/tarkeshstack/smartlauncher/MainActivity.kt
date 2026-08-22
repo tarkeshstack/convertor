@@ -15,12 +15,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.tarkeshstack.smartlauncher.capture.ShareIntentParser
+import com.tarkeshstack.smartlauncher.model.CapturedLink
+import com.tarkeshstack.smartlauncher.ui.BrowseForLinkScreen
 import com.tarkeshstack.smartlauncher.ui.CommandManagerScreen
 import com.tarkeshstack.smartlauncher.ui.SearchScreen
 import com.tarkeshstack.smartlauncher.ui.theme.SmartAppLauncherTheme
 import com.tarkeshstack.smartlauncher.voice.VoiceInputController
 
-private enum class Screen { Search, Commands }
+private enum class Screen { Search, Commands, Browse }
 
 class MainActivity : ComponentActivity() {
 
@@ -90,7 +92,15 @@ class MainActivity : ComponentActivity() {
                         onConsumeCapturedLink = viewModel::consumeCapturedLink,
                         onAdd = viewModel::addCustomCommand,
                         onDelete = viewModel::deleteCustomCommand,
+                        onBrowseForLink = { screen = Screen.Browse },
                         onBack = { screen = Screen.Search },
+                    )
+                    Screen.Browse -> BrowseForLinkScreen(
+                        onCapture = { url ->
+                            viewModel.onLinkCaptured(CapturedLink(uri = url, sourcePackage = null))
+                            screen = Screen.Commands
+                        },
+                        onBack = { screen = Screen.Commands },
                     )
                 }
             }
