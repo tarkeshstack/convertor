@@ -10,9 +10,13 @@ on:
       - ".github/workflows/smart-launcher-build.yml"
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     defaults:
       run:
         working-directory: smart-launcher
@@ -32,8 +36,23 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: smart-launcher-debug-apk
           path: smart-launcher/app/build/outputs/apk/debug/*.apk
+
+      # Workflow-run artifacts only download via a signed Azure blob URL that some
+      # sandboxes/CI viewers can't reach, so also commit the built APK straight into
+      # the repo (outside smart-launcher/ so this commit doesn't retrigger the build).
+      - name: Commit built APK to repo
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir -p smart-launcher-dist
+          cp smart-launcher/app/build/outputs/apk/debug/*.apk smart-launcher-dist/smart-launcher-debug.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f smart-launcher-dist/smart-launcher-debug.apk
+          git diff --cached --quiet && echo "APK unchanged, nothing to commit" && exit 0
+          git commit -m "Add built Smart Launcher debug APK [skip ci]"
+          git push
