@@ -48,10 +48,17 @@ class VoiceInputController(
 
             override fun onError(error: Int) {
                 onListeningChanged(false)
-                if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                    onNoSpeech()
-                } else {
-                    onError("Didn't catch that — try again")
+                when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
+                        onNoSpeech()
+                    // These two are almost always us restarting the recognizer faster than the
+                    // previous session finished tearing down (e.g. a quick relisten), not the
+                    // user doing anything wrong — showing "Didn't catch that" for them was both
+                    // misleading and, since it fired instead of a real retry, made listening
+                    // sessions end far sooner than intended. Treat them the same as no-speech.
+                    SpeechRecognizer.ERROR_CLIENT, SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
+                        onNoSpeech()
+                    else -> onError("Didn't catch that — try again")
                 }
             }
 
@@ -70,6 +77,13 @@ class VoiceInputController(
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            // The system default cuts off after roughly a second of silence, which reads as
+            // "the mic isn't waiting" the moment you pause mid-sentence. These (undocumented
+            // but widely honored, including by Google's own recognizer) extras give it more
+            // patience before deciding you're done or that nothing was said.
+            putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2500)
+            putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 2000)
+            putExtra("android.speech.extra.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 15000)
         }
         newRecognizer.startListening(intent)
     }
