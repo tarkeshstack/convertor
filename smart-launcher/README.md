@@ -28,6 +28,42 @@ because that's the target app's own data, not something this app manages.
 Every command above only fires if the target app is actually installed; if it isn't,
 you get a clear "X isn't installed" message instead of a crash or a silent no-op.
 
+## Conversation mode
+
+Every turn — what you typed or said, and what the app did about it — is logged as a
+running transcript on the search screen ("Opened Amazon", "Booked a ride to airport",
+"Uber isn't installed", ...). That's on by default and needs nothing extra.
+
+Tap the speaker icon in the header to turn on spoken replies too: the app reads its
+response aloud via Android's text-to-speech engine, and — only for a turn you
+started by voice, never by typing — automatically re-arms the mic afterward so you
+can keep going without tapping it again each time. It's this app's own
+speech-to-text feeding straight back into another turn, not literally another app's
+voice-search button (see "Why 'audio search inside another app' works this way"
+below).
+
+### Why "audio search inside another app" works this way
+
+There's no documented, public way for one Android app to open another app's own
+voice-search screen directly — not for YouTube, Spotify, or (as far as I could find)
+any other major app. The only way to fake it would be targeting that app's private,
+undocumented internal activity name, which isn't published, isn't guaranteed to
+exist across versions, and can crash — not something this app does. What it does
+instead, and what actually delivers "say it once, land in results": this app's own
+mic transcribes your speech, then opens the target app already acting on it (e.g.
+saying "play lofi beats on youtube" opens YouTube already searching that). Combined
+with conversation mode's auto-relisten, that's a full spoken back-and-forth without
+ever needing the target app's own mic icon.
+
+### What reading another app's on-screen content would take
+
+This app cannot see or read what's on screen inside another app (e.g. "50 products
+found" after opening Amazon) — Android sandboxes that by design. The only way around
+it is the Accessibility Service, the same heavier mechanism (manual Settings grant,
+breaks when an app's UI changes) that this project has deliberately stayed out of
+for tap recording. It's left out here for the same reason; the conversation log
+above covers what this app itself did, not what's rendered inside the app it opened.
+
 `find <query> in <app>` / `search <query> on <app>` — real search deep link for
 Amazon, YouTube, and Spotify; any other app opens with a message telling you to
 search inside it manually, since there's no way to construct a working search URI
@@ -115,9 +151,14 @@ in on your device — logged in, if you're already logged in there.
   app's website when it has no Share option.
 - `voice/VoiceInputController.kt` — wraps Android's `SpeechRecognizer` for the mic
   button.
-- `ui/SearchScreen.kt` — Jetpack Compose search box + mic + quick-action card + app
-  list.
+- `voice/VoiceOutputController.kt` — wraps Android's `TextToSpeech` for conversation
+  mode's spoken replies.
+- `model/Conversation.kt` — the transcript entry and speech-request types.
+- `ui/SearchScreen.kt` — header, search box + mic, quick-action card, conversation
+  transcript, app list.
 - `ui/CommandManagerScreen.kt` — add/list/delete custom commands.
+- `ui/AppPickerDialog.kt` — searchable modal app list, used for "Open an app" and the
+  deep-link command's target-app field.
 
 ## Requirements
 

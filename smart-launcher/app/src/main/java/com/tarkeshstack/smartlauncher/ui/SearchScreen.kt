@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -25,6 +27,8 @@ import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -36,6 +40,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -56,6 +61,7 @@ import com.tarkeshstack.smartlauncher.MainViewModel
 import com.tarkeshstack.smartlauncher.UiState
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
+import com.tarkeshstack.smartlauncher.model.ConversationEntry
 
 @Composable
 fun SearchScreen(
@@ -100,6 +106,21 @@ fun SearchScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = viewModel::toggleConversationMode) {
+                        Icon(
+                            if (state.speechEnabled) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                            contentDescription = if (state.speechEnabled) {
+                                "Conversation mode on — turn off spoken replies"
+                            } else {
+                                "Conversation mode off — turn on spoken replies"
+                            },
+                            tint = if (state.speechEnabled) {
+                                MaterialTheme.colorScheme.secondary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
                     IconButton(onClick = onOpenCommandManager) {
                         Icon(Icons.Filled.Settings, contentDescription = "Manage custom commands")
                     }
@@ -164,6 +185,13 @@ fun SearchScreen(
                 QuickActionCard(label = command.label, onClick = viewModel::runCommand)
             }
 
+            if (state.conversationLog.isNotEmpty()) {
+                ConversationTranscript(
+                    entries = state.conversationLog,
+                    onClear = viewModel::clearConversation,
+                )
+            }
+
             LazyColumn(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 items(state.filteredApps, key = { it.packageName }) { app ->
                     AppRow(app = app, onClick = { viewModel.launchApp(app) })
@@ -194,6 +222,63 @@ private fun QuickActionCard(label: String, onClick: () -> Unit) {
                 label,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConversationTranscript(entries: List<ConversationEntry>, onClear: () -> Unit) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(entries.size) {
+        if (entries.isNotEmpty()) listState.animateScrollToItem(entries.lastIndex)
+    }
+    Column(modifier = Modifier.padding(top = 14.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Conversation",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = onClear) { Text("Clear") }
+        }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items(entries) { entry -> ConversationBubble(entry) }
+        }
+    }
+}
+
+@Composable
+private fun ConversationBubble(entry: ConversationEntry) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (entry.isUser) Arrangement.End else Arrangement.Start,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = if (entry.isUser) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            },
+        ) {
+            Text(
+                entry.text,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (entry.isUser) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
         }
     }

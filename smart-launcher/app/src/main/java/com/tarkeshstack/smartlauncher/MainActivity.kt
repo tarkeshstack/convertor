@@ -3,6 +3,8 @@ package com.tarkeshstack.smartlauncher
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,13 +23,17 @@ import com.tarkeshstack.smartlauncher.ui.CommandManagerScreen
 import com.tarkeshstack.smartlauncher.ui.SearchScreen
 import com.tarkeshstack.smartlauncher.ui.theme.SmartAppLauncherTheme
 import com.tarkeshstack.smartlauncher.voice.VoiceInputController
+import com.tarkeshstack.smartlauncher.voice.VoiceOutputController
 
 private enum class Screen { Search, Commands, Browse }
+
+private const val RELISTEN_DELAY_MS = 350L
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
     private var voiceController: VoiceInputController? = null
+    private var voiceOutputController: VoiceOutputController? = null
 
     private val requestContactsPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -44,13 +50,11 @@ class MainActivity : ComponentActivity() {
 
         voiceController = VoiceInputController(
             context = this,
-            onResult = { text ->
-                viewModel.onQueryChanged(text)
-                viewModel.runCommand()
-            },
+            onResult = viewModel::onVoiceResult,
             onListeningChanged = viewModel::onListeningChanged,
             onError = viewModel::onVoiceError,
         )
+        voiceOutputController = VoiceOutputController(this)
 
         handleShareIntent(intent)
 
@@ -63,6 +67,22 @@ class MainActivity : ComponentActivity() {
                 // you finish turning it into a command, not leave you on the search screen.
                 LaunchedEffect(state.pendingCapturedLink) {
                     if (state.pendingCapturedLink != null) screen = Screen.Commands
+                }
+
+                // Conversation mode: speak the result, then — only if that turn came from
+                // voice, not typing — re-arm the mic after a short pause so it doesn't
+                // pick up the tail end of the app's own speech.
+                LaunchedEffect(state.pendingSpeech) {
+                    val request = state.pendingSpeech ?: return@LaunchedEffect
+                    viewModel.consumeSpeechRequest()
+                    voiceOutputController?.speak(request.text) {
+                        if (request.shouldRelisten) {
+                            Handler(Looper.getMainLooper()).postDelayed(
+                                { voiceController?.startListening() },
+                                RELISTEN_DELAY_MS,
+                            )
+                        }
+                    }
                 }
 
                 when (screen) {
@@ -115,6 +135,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         voiceController?.destroy()
+        voiceOutputController?.destroy()
         super.onDestroy()
     }
 
