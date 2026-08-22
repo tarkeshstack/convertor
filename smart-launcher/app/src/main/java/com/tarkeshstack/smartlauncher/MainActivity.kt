@@ -30,6 +30,7 @@ private enum class Screen { Search, Commands, Browse }
 
 private const val RELISTEN_DELAY_MS = 350L
 private const val WAKE_RETRY_DELAY_MS = 400L
+private const val PAUSE_STOP_GRACE_MS = 1200L
 
 class MainActivity : ComponentActivity() {
 
@@ -41,6 +42,12 @@ class MainActivity : ComponentActivity() {
     /** True while the current listening session is a passive scan for "hey buddy" rather
      *  than actively taking down a real command. */
     private var isWakeCycle = false
+
+    /** Snapshot taken at the moment of onPause, so onResume can put listening back the way
+     *  it was — whether that was a wake scan or an active command session. */
+    private var wasListeningBeforePause = false
+    private var wasWakeCycleBeforePause = false
+    private var pendingPauseStop: Runnable? = null
 
     private val requestContactsPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -184,23 +191,39 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        wasListeningBeforePause = viewModel.uiState.value.isListening
+        wasWakeCycleBeforePause = isWakeCycle
         // Wake-word listening only ever runs while this screen is in the foreground: Android
         // gives third-party apps no supported way to listen for a wake phrase — or launch
         // themselves — while backgrounded without a permanent foreground-service notification,
-        // and even then auto-raising the app to the front isn't reliable across OEMs. So any
-        // listening session (wake scan or an in-progress command) stops the moment you leave,
-        // and onResume below picks the wake loop back up if it was on.
-        voiceController?.stopListening()
+        // and even then auto-raising the app to the front isn't reliable across OEMs. So a
+        // listening session does eventually need to stop when you leave.
+        //
+        // But leaving is exactly what happens the instant a command opens another app (e.g.
+        // "open uber") — that used to kill the mic immediately, which both looked like the
+        // mic had died and, worse, could cut off a session before Android even resumed us.
+        // So don't stop right away: give it a short grace window, and onResume below cancels
+        // the pending stop outright if we're back before it fires — meaning a quick app-switch
+        // never audibly touches the mic at all. Only a longer stay away actually stops it.
+        val stopRunnable = Runnable { voiceController?.stopListening() }
+        pendingPauseStop = stopRunnable
+        mainHandler.postDelayed(stopRunnable, PAUSE_STOP_GRACE_MS)
     }
 
     override fun onResume() {
         super.onResume()
-        if (viewModel.uiState.value.wakeWordEnabled && !viewModel.uiState.value.isListening) {
-            startWakeListening()
+        pendingPauseStop?.let(mainHandler::removeCallbacks)
+        pendingPauseStop = null
+        when {
+            viewModel.uiState.value.wakeWordEnabled && !viewModel.uiState.value.isListening ->
+                startWakeListening()
+            wasListeningBeforePause && !wasWakeCycleBeforePause && !viewModel.uiState.value.isListening ->
+                startCommandListening()
         }
     }
 
     override fun onDestroy() {
+        pendingPauseStop?.let(mainHandler::removeCallbacks)
         voiceController?.destroy()
         voiceOutputController?.destroy()
         super.onDestroy()
