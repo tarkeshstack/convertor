@@ -1,0 +1,39 @@
+name: Smart Launcher - Build debug APK
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+    paths:
+      - "smart-launcher/**"
+      - ".github/workflows/smart-launcher-build.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: smart-launcher
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: smart-launcher-debug-apk
+          path: smart-launcher/app/build/outputs/apk/debug/*.apk

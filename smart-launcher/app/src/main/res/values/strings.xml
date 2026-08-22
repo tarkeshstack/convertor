@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Smart Launcher</string>
+    <string name="search_placeholder">Search apps or type a command…</string>
+</resources>
