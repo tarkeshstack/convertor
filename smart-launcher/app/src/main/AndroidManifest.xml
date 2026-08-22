@@ -73,6 +73,15 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Lets this app appear in other apps' Share sheet: pick "Smart Launcher"
+                 when sharing a link out of another app to capture it as a deep link,
+                 without needing to know that app's URI scheme. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
     </application>
 

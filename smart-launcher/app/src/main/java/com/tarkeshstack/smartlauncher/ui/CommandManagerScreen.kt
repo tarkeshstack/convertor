@@ -15,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -27,22 +29,28 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.dp
 import com.tarkeshstack.smartlauncher.model.AppInfo
+import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
+import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 import java.util.UUID
 
 @Composable
 fun CommandManagerScreen(
     commands: List<CustomCommand>,
     allApps: List<AppInfo>,
+    pendingCapturedLink: CapturedLink?,
+    onConsumeCapturedLink: () -> Unit,
     onAdd: (CustomCommand) -> Unit,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
@@ -67,7 +75,12 @@ fun CommandManagerScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp),
         ) {
-            AddCommandForm(allApps = allApps, onAdd = onAdd)
+            AddCommandForm(
+                allApps = allApps,
+                pendingCapturedLink = pendingCapturedLink,
+                onConsumeCapturedLink = onConsumeCapturedLink,
+                onAdd = onAdd,
+            )
 
             Spacer(Modifier.height(16.dp))
             HorizontalDivider()
@@ -114,7 +127,12 @@ private fun CommandRow(command: CustomCommand, onDelete: () -> Unit) {
 }
 
 @Composable
-private fun AddCommandForm(allApps: List<AppInfo>, onAdd: (CustomCommand) -> Unit) {
+private fun AddCommandForm(
+    allApps: List<AppInfo>,
+    pendingCapturedLink: CapturedLink?,
+    onConsumeCapturedLink: () -> Unit,
+    onAdd: (CustomCommand) -> Unit,
+) {
     var phrase by remember { mutableStateOf("") }
     var label by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf(CustomCommandKind.OPEN_APP) }
@@ -122,10 +140,37 @@ private fun AddCommandForm(allApps: List<AppInfo>, onAdd: (CustomCommand) -> Uni
     var deepLinkUri by remember { mutableStateOf("") }
     var deepLinkPackage by remember { mutableStateOf("") }
     var appPickerExpanded by remember { mutableStateOf(false) }
+    var suggestionsExpanded by remember { mutableStateOf(false) }
+    var justCaptured by remember { mutableStateOf(false) }
+
+    val clipboardManager = LocalClipboardManager.current
+
+    // A link shared in from another app's Share sheet lands here pre-filled.
+    LaunchedEffect(pendingCapturedLink) {
+        val captured = pendingCapturedLink ?: return@LaunchedEffect
+        kind = CustomCommandKind.DEEP_LINK
+        deepLinkUri = captured.uri
+        deepLinkPackage = captured.sourcePackage.orEmpty()
+        justCaptured = true
+        onConsumeCapturedLink()
+    }
 
     Column(modifier = Modifier.padding(vertical = 12.dp)) {
         Text("Add a command", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))
+
+        if (justCaptured) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            ) {
+                Text(
+                    "Captured a link from another app — give it a trigger phrase and save.",
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
 
         OutlinedTextField(
             value = phrase,
@@ -180,6 +225,51 @@ private fun AddCommandForm(allApps: List<AppInfo>, onAdd: (CustomCommand) -> Uni
                 }
             }
             CustomCommandKind.DEEP_LINK -> {
+                Text(
+                    "Not sure of the link? Open the app, find what you want, tap Share (or " +
+                        "Copy Link), then use one of these:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                Row {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            val clip = clipboardManager.getText()?.text?.trim().orEmpty()
+                            if (clip.isNotBlank()) {
+                                val match = Regex("""[a-zA-Z][a-zA-Z0-9+.-]*://\S+""").find(clip)
+                                deepLinkUri = match?.value ?: clip
+                            }
+                        },
+                    ) {
+                        Text("Paste from clipboard")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { suggestionsExpanded = true },
+                        ) {
+                            Text("Suggestions")
+                        }
+                        DropdownMenu(
+                            expanded = suggestionsExpanded,
+                            onDismissRequest = { suggestionsExpanded = false },
+                        ) {
+                            DeepLinkSuggestions.all.forEach { suggestion ->
+                                DropdownMenuItem(
+                                    text = { Text("${suggestion.appLabel} — ${suggestion.description}") },
+                                    onClick = {
+                                        deepLinkUri = suggestion.uriTemplate
+                                        deepLinkPackage = suggestion.packageName.orEmpty()
+                                        suggestionsExpanded = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = deepLinkUri,
                     onValueChange = { deepLinkUri = it },
@@ -195,6 +285,14 @@ private fun AddCommandForm(allApps: List<AppInfo>, onAdd: (CustomCommand) -> Uni
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
+                if (deepLinkUri.contains("REPLACE_ME")) {
+                    Text(
+                        "Replace REPLACE_ME with what you actually want before saving.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         }
 
@@ -225,6 +323,7 @@ private fun AddCommandForm(allApps: List<AppInfo>, onAdd: (CustomCommand) -> Uni
                 selectedApp = null
                 deepLinkUri = ""
                 deepLinkPackage = ""
+                justCaptured = false
             },
             enabled = canSave,
             modifier = Modifier.fillMaxWidth(),

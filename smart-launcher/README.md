@@ -54,7 +54,28 @@ Each one is either:
 Custom commands are checked before the built-in parser, so your phrase wins even if
 it overlaps with a recognized pattern. They're stored locally in a JSON file in the
 app's private storage (`data/CustomCommandRepository.kt`) — nothing leaves the
-device. There's no step-recorder here: this app can't record and replay taps inside
+device.
+
+### Finding a deep link without knowing the syntax
+
+The "Deep link / URI" form has three ways to fill in the URI field without hand-writing
+one:
+
+- **Share it in** — open the app you want, find the exact item/screen, tap its Share
+  button, and pick "Smart Launcher" from the share sheet. This app registers as a
+  share target (see the `SEND`/`text/plain` intent-filter in the manifest and
+  `capture/ShareIntentParser.kt`); it pulls the link out of the shared text, and —
+  when the sharing app supplies it — the source app's package too, then drops you
+  straight into the command form with both pre-filled.
+- **Paste from clipboard** — for apps whose "Copy Link" doesn't go through Android's
+  share sheet: copy the link there, then tap this button here.
+- **Suggestions** — a curated list of publicly documented link patterns for common
+  apps (YouTube/Spotify/Amazon search, Instagram/X profiles, Telegram, Netflix,
+  Google Maps, the Play Store). Picking one fills in a template with a `REPLACE_ME`
+  placeholder you swap for your actual value; the form warns if you try to save one
+  unedited.
+
+There's no step-recorder here: this app can't record and replay taps inside
 other apps (that needs Android's Accessibility Service, a much heavier and more
 fragile mechanism), so a custom command can only open an app or fire a deep link,
 not drive a multi-screen flow.

@@ -11,6 +11,7 @@ import com.tarkeshstack.smartlauncher.data.CustomCommandRepository
 import com.tarkeshstack.smartlauncher.data.InstalledAppsRepository
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
+import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.ParsedCommand
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,7 @@ data class UiState(
     val statusMessage: String? = null,
     val pendingContactsPermissionFor: String? = null,
     val isListening: Boolean = false,
+    val pendingCapturedLink: CapturedLink? = null,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -146,6 +148,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onVoiceError(message: String) {
         _uiState.update { it.copy(isListening = false, statusMessage = message) }
+    }
+
+    /** A link arrived via another app's Share sheet; the command manager prefills from it. */
+    fun onLinkCaptured(link: CapturedLink) {
+        _uiState.update { it.copy(pendingCapturedLink = link) }
+    }
+
+    fun consumeCapturedLink() {
+        _uiState.update { it.copy(pendingCapturedLink = null) }
     }
 
     private fun runExecution(block: suspend () -> ExecutionResult) {
