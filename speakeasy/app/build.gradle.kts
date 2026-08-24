@@ -45,6 +45,19 @@ android {
             excludes += "/META-INF/DEPENDENCIES"
         }
     }
+
+    // ML Kit bundles native inference libraries per CPU architecture, which balloons a
+    // universal APK to ~80MB. Split into one APK per ABI instead: arm64-v8a is what
+    // virtually every real phone since ~2017 uses, x86_64 is what the CI smoke-test
+    // emulator uses — no need to also ship the now-rare 32-bit armeabi-v7a/x86 slices.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = false
+        }
+    }
 }
 
 dependencies {

@@ -8,7 +8,9 @@
 # each line of an inline `script:` block as its own separate process.
 set -euo pipefail
 
-APK=$(find apk -name "*.apk" | head -n1)
+# The build now splits by ABI (see build.gradle.kts) — install the x86_64 variant to
+# match this emulator's own architecture.
+APK=$(find apk -name "*x86_64*.apk" | head -n1)
 echo "Installing $APK"
 adb install -r "$APK"
 

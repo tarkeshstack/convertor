@@ -101,7 +101,9 @@ jobs:
       - name: Commit built APK to repo
         run: |
           mkdir -p speakeasy-dist
-          cp apk/*.apk speakeasy-dist/speakeasy-debug.apk
+          # Build now splits by ABI (see build.gradle.kts) — commit the arm64-v8a variant,
+          # what virtually every real phone since ~2017 uses, not the x86_64 emulator one.
+          cp apk/*arm64-v8a*.apk speakeasy-dist/speakeasy-debug.apk
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f speakeasy-dist/speakeasy-debug.apk
