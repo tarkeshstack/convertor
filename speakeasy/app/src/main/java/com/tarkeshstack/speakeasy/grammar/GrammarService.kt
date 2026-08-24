@@ -2,6 +2,7 @@ package com.tarkeshstack.speakeasy.grammar
 
 import com.tarkeshstack.speakeasy.model.AnalysisResult
 import com.tarkeshstack.speakeasy.model.GrammarIssue
+import com.tarkeshstack.speakeasy.model.IssueCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -58,6 +59,7 @@ class GrammarService {
 
         AnalysisResult(
             original = rawTranscript.trim(),
+            base = base,
             corrected = corrected,
             simplified = simplified,
             issues = issues,
@@ -141,12 +143,20 @@ class GrammarService {
                     replacements.getJSONObject(0).optString("value", original)
                 } else null
 
+                val rule = match.optJSONObject("rule")
+                val ruleId = rule?.optString("id").orEmpty()
+                val issueType = rule?.optString("issueType").orEmpty()
+                val categoryName = rule?.optJSONObject("category")?.optString("name").orEmpty()
+
                 issues.add(
                     GrammarIssue(
                         id = "$offset-$length",
+                        offset = offset,
+                        length = length,
                         original = original,
                         suggestion = bestReplacement ?: original,
                         message = match.optString("shortMessage").ifBlank { match.optString("message") },
+                        category = classify(ruleId, issueType, categoryName),
                     ),
                 )
 
@@ -159,6 +169,35 @@ class GrammarService {
             corrected to issues.reversed()
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /** Maps a LanguageTool rule to the learner-facing categories this app surfaces
+     *  (preposition, tense, conjunction, word choice, punctuation, spelling, ...),
+     *  using the rule id first since LanguageTool's own category names are broader
+     *  than what's useful to show a learner (most things land under "Grammar"). */
+    private fun classify(ruleId: String, issueType: String, categoryName: String): IssueCategory {
+        val id = ruleId.uppercase()
+        return when {
+            id.contains("PREPOSITION") -> IssueCategory.Preposition
+            id.contains("TENSE") || id.contains("VERB_FORM") || id.contains("PAST_") || id.contains("PRESENT_") ->
+                IssueCategory.Tense
+            id.contains("SUBJECT_VERB") || id.contains("AGREEMENT") || id.contains("SVA") ->
+                IssueCategory.Agreement
+            id.contains("CONJUNCTION") -> IssueCategory.Conjunction
+            id.contains("ARTICLE") || id.contains("_A_VS_AN") -> IssueCategory.Article
+            id.contains("PUNCTUATION") || id.contains("COMMA") || id.contains("WHITESPACE") ->
+                IssueCategory.Punctuation
+            issueType.equals("misspelling", ignoreCase = true) || id.contains("SPELL") ->
+                IssueCategory.Spelling
+            issueType.equals("style", ignoreCase = true) ||
+                id.contains("REDUNDAN") || id.contains("WORDINESS") || id.contains("COLLOCATION") ->
+                IssueCategory.WordChoice
+            categoryName.contains("preposition", ignoreCase = true) -> IssueCategory.Preposition
+            categoryName.contains("punctuation", ignoreCase = true) -> IssueCategory.Punctuation
+            categoryName.contains("typo", ignoreCase = true) -> IssueCategory.Spelling
+            categoryName.contains("style", ignoreCase = true) -> IssueCategory.WordChoice
+            else -> IssueCategory.Grammar
         }
     }
 }

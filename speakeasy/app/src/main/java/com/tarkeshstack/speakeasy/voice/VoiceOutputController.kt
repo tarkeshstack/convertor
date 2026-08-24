@@ -22,7 +22,9 @@ class VoiceOutputController(context: Context) {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.US
-                tts?.setSpeechRate(0.95f)
+                // A language-learner reading this back needs it noticeably slower than
+                // natural speech (1.0), not just a shade under it.
+                tts?.setSpeechRate(0.72f)
                 ready = true
             }
         }

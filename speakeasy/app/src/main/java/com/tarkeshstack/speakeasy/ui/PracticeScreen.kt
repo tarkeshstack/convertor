@@ -39,9 +39,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.tarkeshstack.speakeasy.UiState
 import com.tarkeshstack.speakeasy.model.AnalysisResult
@@ -169,13 +173,47 @@ private fun Waveform(level: Float, active: Boolean) {
     }
 }
 
+/** Renders [base] with each mistake struck through in red and its fix shown right
+ *  after in bold, e.g. "I ~~goes~~ **go** to school." Issues with no real replacement
+ *  (suggestion identical to the original) are just flagged, not crossed out. */
+@Composable
+private fun highlightedMistakes(base: String, issues: List<GrammarIssue>): AnnotatedString {
+    val errorColor = MaterialTheme.colorScheme.error
+    val fixColor = MaterialTheme.colorScheme.secondary
+    return buildAnnotatedString {
+        var cursor = 0
+        for (issue in issues.sortedBy { it.offset }) {
+            if (issue.offset < cursor || issue.offset + issue.length > base.length) continue
+            append(base.substring(cursor, issue.offset))
+            val hasRealFix = issue.suggestion.isNotBlank() &&
+                !issue.suggestion.equals(issue.original, ignoreCase = true)
+            withStyle(
+                SpanStyle(
+                    color = errorColor,
+                    textDecoration = if (hasRealFix) TextDecoration.LineThrough else TextDecoration.Underline,
+                ),
+            ) {
+                append(issue.original)
+            }
+            if (hasRealFix) {
+                append(" ")
+                withStyle(SpanStyle(color = fixColor, fontWeight = FontWeight.Bold)) {
+                    append(issue.suggestion)
+                }
+            }
+            cursor = issue.offset + issue.length
+        }
+        append(base.substring(cursor))
+    }
+}
+
 @Composable
 private fun FeedbackCard(result: AnalysisResult, onReplay: (String) -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        LazyColumn(contentPadding = PaddingValues(20.dp), modifier = Modifier.height(320.dp)) {
+        LazyColumn(contentPadding = PaddingValues(20.dp), modifier = Modifier.height(420.dp)) {
             item {
                 Label("You said")
                 Text(
@@ -194,7 +232,17 @@ private fun FeedbackCard(result: AnalysisResult, onReplay: (String) -> Unit) {
                 Divider()
 
                 val issueCount = result.issues.size
-                Label(if (issueCount > 0) "Corrected · $issueCount suggestion${if (issueCount > 1) "s" else ""}" else "Looks good!")
+                if (issueCount > 0) {
+                    Label("What to fix · $issueCount issue${if (issueCount > 1) "s" else ""}")
+                    Text(
+                        highlightedMistakes(result.base, result.issues),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+
+                Label(if (issueCount > 0) "Corrected sentence" else "Looks good!")
                 Text(
                     result.corrected,
                     style = MaterialTheme.typography.titleMedium,
@@ -208,7 +256,19 @@ private fun FeedbackCard(result: AnalysisResult, onReplay: (String) -> Unit) {
                 }
             }
 
-            items(result.issues) { issue -> IssueRow(issue) }
+            result.issues.groupBy { it.category }.forEach { (category, issuesInCategory) ->
+                item {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        category.label.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                    )
+                }
+                items(issuesInCategory) { issue -> IssueRow(issue) }
+            }
 
             val simplifiedText = result.simplified
             if (simplifiedText != null) {
