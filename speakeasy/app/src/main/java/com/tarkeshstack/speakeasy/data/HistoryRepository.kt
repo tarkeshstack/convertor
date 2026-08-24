@@ -14,19 +14,7 @@ class HistoryRepository(private val context: Context) {
     private val file: File get() = File(context.filesDir, "conversation_history.json")
 
     suspend fun loadAll(): List<ConversationEntry> = withContext(Dispatchers.IO) {
-        if (!file.exists()) return@withContext emptyList()
-        val array = JSONArray(file.readText())
-        (0 until array.length()).map { i ->
-            val obj = array.getJSONObject(i)
-            ConversationEntry(
-                id = obj.getString("id"),
-                timestamp = obj.getLong("timestamp"),
-                original = obj.getString("original"),
-                corrected = obj.getString("corrected"),
-                simplified = obj.optString("simplified", "").ifBlank { null },
-                issueCount = obj.optInt("issueCount", 0),
-            )
-        }.sortedByDescending { it.timestamp }
+        loadAllUnsorted().sortedByDescending { it.timestamp }
     }
 
     suspend fun saveEntry(entry: ConversationEntry): List<ConversationEntry> = withContext(Dispatchers.IO) {
@@ -36,14 +24,21 @@ class HistoryRepository(private val context: Context) {
     }
 
     suspend fun deleteEntry(id: String): List<ConversationEntry> = withContext(Dispatchers.IO) {
-        val updated = loadAllUnsorted().filterNot { it.id == id }
+        val all = loadAllUnsorted()
+        all.firstOrNull { it.id == id }?.audioFilePath?.let { deleteAudioFile(it) }
+        val updated = all.filterNot { it.id == id }
         writeAll(updated)
         updated.sortedByDescending { it.timestamp }
     }
 
     suspend fun clearAll() = withContext(Dispatchers.IO) {
+        loadAllUnsorted().forEach { it.audioFilePath?.let { path -> deleteAudioFile(path) } }
         if (file.exists()) file.delete()
         Unit
+    }
+
+    private fun deleteAudioFile(path: String) {
+        runCatching { File(path).takeIf { it.exists() }?.delete() }
     }
 
     private fun loadAllUnsorted(): List<ConversationEntry> {
@@ -51,6 +46,7 @@ class HistoryRepository(private val context: Context) {
         val array = JSONArray(file.readText())
         return (0 until array.length()).map { i ->
             val obj = array.getJSONObject(i)
+            val categories = obj.optJSONArray("issueCategories")
             ConversationEntry(
                 id = obj.getString("id"),
                 timestamp = obj.getLong("timestamp"),
@@ -58,6 +54,8 @@ class HistoryRepository(private val context: Context) {
                 corrected = obj.getString("corrected"),
                 simplified = obj.optString("simplified", "").ifBlank { null },
                 issueCount = obj.optInt("issueCount", 0),
+                issueCategories = categories?.let { arr -> (0 until arr.length()).map { arr.getString(it) } } ?: emptyList(),
+                audioFilePath = obj.optString("audioFilePath", "").ifBlank { null },
             )
         }
     }
@@ -73,6 +71,8 @@ class HistoryRepository(private val context: Context) {
                     put("corrected", entry.corrected)
                     put("simplified", entry.simplified ?: "")
                     put("issueCount", entry.issueCount)
+                    put("issueCategories", JSONArray(entry.issueCategories))
+                    put("audioFilePath", entry.audioFilePath ?: "")
                 },
             )
         }

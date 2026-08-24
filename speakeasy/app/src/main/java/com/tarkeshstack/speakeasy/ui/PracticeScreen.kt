@@ -21,8 +21,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
@@ -67,12 +69,26 @@ fun PracticeScreen(
     onMicPress: () -> Unit,
     onCancel: () -> Unit,
     onReplay: (String) -> Unit,
+    onPlayRecording: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onCloseSettings: () -> Unit,
     onSaveApiKey: (String) -> Unit,
+    onRequestSummary: () -> Unit,
+    onCloseSummary: () -> Unit,
+    onNewSession: () -> Unit,
 ) {
     if (state.showSettings) {
         ApiKeyDialog(currentKey = state.apiKey, onSave = onSaveApiKey, onDismiss = onCloseSettings)
+    }
+    if (state.showSummary) {
+        SessionSummaryDialog(
+            loading = state.summaryLoading,
+            summary = state.summaryResult,
+            error = state.summaryError,
+            onReplay = onReplay,
+            onDismiss = onCloseSummary,
+            onNewSession = onNewSession,
+        )
     }
 
     Column(
@@ -94,9 +110,23 @@ fun PracticeScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = onOpenSettings) {
-                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (state.sessionTurnCount > 0) {
+                    IconButton(onClick = onRequestSummary) {
+                        Icon(Icons.Filled.Assessment, contentDescription = "Session summary", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
+        }
+        if (state.sessionTurnCount > 0) {
+            Text(
+                "${state.sessionTurnCount} sentence${if (state.sessionTurnCount > 1) "s" else ""} this session · tap the report icon for a summary",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         Spacer(Modifier.height(24.dp))
@@ -136,7 +166,7 @@ fun PracticeScreen(
         Spacer(Modifier.height(24.dp))
 
         state.result?.let { result ->
-            FeedbackCard(result = result, onReplay = onReplay)
+            FeedbackCard(result = result, audioPath = state.lastAudioPath, onReplay = onReplay, onPlayRecording = onPlayRecording)
             Spacer(Modifier.height(16.dp))
             CoachSection(
                 hasApiKey = state.apiKey != null,
@@ -184,6 +214,67 @@ private fun ApiKeyDialog(currentKey: String?, onSave: (String) -> Unit, onDismis
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun SessionSummaryDialog(
+    loading: Boolean,
+    summary: String?,
+    error: String?,
+    onReplay: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onNewSession: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Session summary") },
+        text = {
+            Column {
+                when {
+                    loading -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                "Looking back over your session…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    summary != null -> {
+                        Text(summary, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                        if (error != null) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "(Showing an offline summary — $error)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    error != null -> {
+                        Text(error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (summary != null) {
+                TextButton(onClick = { onReplay(summary) }) {
+                    Icon(Icons.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Hear it")
+                }
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onNewSession) { Text("New session") }
+            }
         },
     )
 }
@@ -344,7 +435,12 @@ private fun highlightedMistakes(base: String, issues: List<GrammarIssue>): Annot
 }
 
 @Composable
-private fun FeedbackCard(result: AnalysisResult, onReplay: (String) -> Unit) {
+private fun FeedbackCard(
+    result: AnalysisResult,
+    audioPath: String?,
+    onReplay: (String) -> Unit,
+    onPlayRecording: (String) -> Unit,
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth(),
@@ -357,6 +453,14 @@ private fun FeedbackCard(result: AnalysisResult, onReplay: (String) -> Unit) {
                     style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (audioPath != null) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = { onPlayRecording(audioPath) }) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Play your recording")
+                    }
+                }
                 if (result.offline) {
                     Spacer(Modifier.height(8.dp))
                     Text(

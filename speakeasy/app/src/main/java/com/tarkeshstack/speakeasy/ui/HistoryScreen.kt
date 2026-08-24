@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,6 +39,7 @@ fun HistoryScreen(
     onDelete: (String) -> Unit,
     onClearAll: () -> Unit,
     onReplay: (String) -> Unit,
+    onPlayRecording: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -85,7 +87,7 @@ fun HistoryScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(history, key = { it.id }) { entry ->
-                    HistoryItem(entry = entry, onDelete = onDelete, onReplay = onReplay)
+                    HistoryItem(entry = entry, onDelete = onDelete, onReplay = onReplay, onPlayRecording = onPlayRecording)
                 }
             }
         }
@@ -93,7 +95,12 @@ fun HistoryScreen(
 }
 
 @Composable
-private fun HistoryItem(entry: ConversationEntry, onDelete: (String) -> Unit, onReplay: (String) -> Unit) {
+private fun HistoryItem(
+    entry: ConversationEntry,
+    onDelete: (String) -> Unit,
+    onReplay: (String) -> Unit,
+    onPlayRecording: (String) -> Unit,
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(14.dp),
@@ -118,6 +125,12 @@ private fun HistoryItem(entry: ConversationEntry, onDelete: (String) -> Unit, on
                             color = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.padding(end = 8.dp),
                         )
+                    }
+                    val audioPath = entry.audioFilePath
+                    if (audioPath != null) {
+                        IconButton(onClick = { onPlayRecording(audioPath) }) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Play your recording", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                     IconButton(onClick = { onReplay(entry.corrected) }) {
                         Icon(Icons.Filled.VolumeUp, contentDescription = "Replay", tint = MaterialTheme.colorScheme.onSurfaceVariant)

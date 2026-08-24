@@ -4,11 +4,13 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tarkeshstack.speakeasy.coach.CoachService
+import com.tarkeshstack.speakeasy.coach.SessionSummaryService
 import com.tarkeshstack.speakeasy.data.HistoryRepository
 import com.tarkeshstack.speakeasy.data.SettingsRepository
 import com.tarkeshstack.speakeasy.grammar.GrammarService
 import com.tarkeshstack.speakeasy.model.ConversationEntry
 import com.tarkeshstack.speakeasy.model.AnalysisResult
+import com.tarkeshstack.speakeasy.model.PlaybackRequest
 import com.tarkeshstack.speakeasy.model.PracticeStatus
 import com.tarkeshstack.speakeasy.model.SpeechRequest
 import com.tarkeshstack.speakeasy.model.Tab
@@ -25,14 +27,21 @@ data class UiState(
     val rmsLevel: Float = 0f,
     val isListening: Boolean = false,
     val result: AnalysisResult? = null,
+    val lastAudioPath: String? = null,
     val history: List<ConversationEntry> = emptyList(),
     val errorMessage: String? = null,
     val pendingSpeech: SpeechRequest? = null,
+    val pendingPlayback: PlaybackRequest? = null,
     val apiKey: String? = null,
     val showSettings: Boolean = false,
     val coachLoading: Boolean = false,
     val coachFeedback: String? = null,
     val coachError: String? = null,
+    val sessionTurnCount: Int = 0,
+    val showSummary: Boolean = false,
+    val summaryLoading: Boolean = false,
+    val summaryResult: String? = null,
+    val summaryError: String? = null,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -41,6 +50,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val historyRepo = HistoryRepository(application)
     private val settingsRepo = SettingsRepository(application)
     private val coachService = CoachService()
+    private val summaryService = SessionSummaryService()
+
+    /** Turns practiced since the app opened or the last "New session", newest first —
+     *  the basis for the end-of-session summary. Not persisted; history (on disk) is the
+     *  durable record, this is just the current session's working set. */
+    private val sessionEntries = mutableListOf<ConversationEntry>()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -106,7 +121,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(status = PracticeStatus.Error, errorMessage = message) }
     }
 
-    fun onVoiceResult(text: String) {
+    /** [audioPath] is the user's own recorded voice for this turn, if the device allowed
+     *  recording it alongside speech recognition — null just means no playback for this
+     *  turn, the transcript/analysis pipeline below is unaffected either way. */
+    fun onVoiceResult(text: String, audioPath: String? = null) {
         _uiState.update {
             it.copy(
                 status = PracticeStatus.Analyzing,
@@ -136,15 +154,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 corrected = analysis.corrected,
                 simplified = analysis.simplified,
                 issueCount = analysis.issues.size,
+                issueCategories = analysis.issues.map { it.category.label },
+                audioFilePath = audioPath,
             )
             val updatedHistory = historyRepo.saveEntry(entry)
+            sessionEntries.add(0, entry)
 
             _uiState.update {
                 it.copy(
                     status = PracticeStatus.Result,
                     result = analysis,
+                    lastAudioPath = audioPath,
                     history = updatedHistory,
                     pendingSpeech = SpeechRequest(System.currentTimeMillis(), analysis.corrected),
+                    sessionTurnCount = sessionEntries.size,
                 )
             }
 
@@ -172,6 +195,62 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** End-of-session report across every turn practiced since the app opened or the
+     *  session was last cleared. Uses the Claude coach if a key is configured, otherwise
+     *  falls back to a fully offline summary — this always produces something. */
+    fun requestSessionSummary() {
+        if (sessionEntries.isEmpty()) {
+            _uiState.update {
+                it.copy(showSummary = true, summaryLoading = false, summaryResult = null, summaryError = "Practice a few sentences first, then ask for a summary.")
+            }
+            return
+        }
+        val apiKey = _uiState.value.apiKey
+        _uiState.update { it.copy(showSummary = true, summaryLoading = apiKey != null, summaryResult = null, summaryError = null) }
+
+        if (apiKey == null) {
+            _uiState.update { it.copy(summaryResult = SessionSummaryService.localSummary(sessionEntries)) }
+            return
+        }
+
+        viewModelScope.launch {
+            summaryService.summarize(apiKey, sessionEntries).fold(
+                onSuccess = { text -> _uiState.update { it.copy(summaryLoading = false, summaryResult = text) } },
+                onFailure = { error ->
+                    // Still give the user something useful even if the API call failed.
+                    _uiState.update {
+                        it.copy(
+                            summaryLoading = false,
+                            summaryResult = SessionSummaryService.localSummary(sessionEntries),
+                            summaryError = error.message,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun closeSummary() {
+        _uiState.update { it.copy(showSummary = false) }
+    }
+
+    /** Clears the current session's working set (not history) so the next summary only
+     *  covers turns practiced from here on. */
+    fun startNewSession() {
+        sessionEntries.clear()
+        _uiState.update {
+            it.copy(sessionTurnCount = 0, showSummary = false, summaryResult = null, summaryError = null)
+        }
+    }
+
+    fun playRecording(filePath: String) {
+        _uiState.update { it.copy(pendingPlayback = PlaybackRequest(System.currentTimeMillis(), filePath)) }
+    }
+
+    fun consumePlaybackRequest() {
+        _uiState.update { it.copy(pendingPlayback = null) }
+    }
+
     fun consumeSpeechRequest() {
         _uiState.update { it.copy(pendingSpeech = null) }
     }
@@ -186,6 +265,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 status = PracticeStatus.Idle,
                 liveTranscript = "",
                 result = null,
+                lastAudioPath = null,
                 errorMessage = null,
                 coachFeedback = null,
                 coachError = null,

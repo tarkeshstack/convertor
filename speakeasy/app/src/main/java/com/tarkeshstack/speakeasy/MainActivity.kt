@@ -26,6 +26,8 @@ import com.tarkeshstack.speakeasy.model.Tab
 import com.tarkeshstack.speakeasy.ui.HistoryScreen
 import com.tarkeshstack.speakeasy.ui.PracticeScreen
 import com.tarkeshstack.speakeasy.ui.theme.SpeakEasyTheme
+import com.tarkeshstack.speakeasy.voice.AudioPlaybackController
+import com.tarkeshstack.speakeasy.voice.AudioRecorderController
 import com.tarkeshstack.speakeasy.voice.VoiceInputController
 import com.tarkeshstack.speakeasy.voice.VoiceOutputController
 
@@ -34,6 +36,8 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private var voiceController: VoiceInputController? = null
     private var voiceOutputController: VoiceOutputController? = null
+    private var audioRecorder: AudioRecorderController? = null
+    private var audioPlayback: AudioPlaybackController? = null
 
     private val requestMicPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -49,14 +53,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        audioRecorder = AudioRecorderController(this)
+        audioPlayback = AudioPlaybackController()
         voiceController = VoiceInputController(
             context = this,
-            onResult = viewModel::onVoiceResult,
+            onResult = ::handleVoiceResult,
             onPartialResult = viewModel::onPartialTranscript,
             onListeningChanged = viewModel::onListeningChanged,
             onVolumeChanged = viewModel::onRmsChanged,
-            onRecognitionError = viewModel::onVoiceError,
-            onNoSpeech = viewModel::onNoSpeech,
+            onRecognitionError = ::handleVoiceError,
+            onNoSpeech = ::handleNoSpeech,
         )
         voiceOutputController = VoiceOutputController(this)
 
@@ -68,6 +74,12 @@ class MainActivity : ComponentActivity() {
                     val request = state.pendingSpeech ?: return@LaunchedEffect
                     viewModel.consumeSpeechRequest()
                     voiceOutputController?.speak(request.text)
+                }
+
+                LaunchedEffect(state.pendingPlayback) {
+                    val request = state.pendingPlayback ?: return@LaunchedEffect
+                    viewModel.consumePlaybackRequest()
+                    audioPlayback?.play(request.filePath)
                 }
 
                 Scaffold(
@@ -95,15 +107,20 @@ class MainActivity : ComponentActivity() {
                                 onMicPress = ::onMicPress,
                                 onCancel = ::stopListening,
                                 onReplay = viewModel::replay,
+                                onPlayRecording = viewModel::playRecording,
                                 onOpenSettings = viewModel::openSettings,
                                 onCloseSettings = viewModel::closeSettings,
                                 onSaveApiKey = viewModel::saveApiKey,
+                                onRequestSummary = viewModel::requestSessionSummary,
+                                onCloseSummary = viewModel::closeSummary,
+                                onNewSession = viewModel::startNewSession,
                             )
                             Tab.History -> HistoryScreen(
                                 history = state.history,
                                 onDelete = viewModel::deleteHistoryEntry,
                                 onClearAll = viewModel::clearHistory,
                                 onReplay = viewModel::replay,
+                                onPlayRecording = viewModel::playRecording,
                             )
                         }
                     }
@@ -133,16 +150,36 @@ class MainActivity : ComponentActivity() {
 
     private fun startListening() {
         voiceOutputController?.stop()
+        audioPlayback?.stop()
+        audioRecorder?.start()
         voiceController?.startListening()
     }
 
     private fun stopListening() {
+        audioRecorder?.stop()
         voiceController?.stopListening()
+    }
+
+    private fun handleVoiceResult(text: String) {
+        val audioPath = audioRecorder?.stop()
+        viewModel.onVoiceResult(text, audioPath)
+    }
+
+    private fun handleVoiceError(message: String) {
+        audioRecorder?.stop()
+        viewModel.onVoiceError(message)
+    }
+
+    private fun handleNoSpeech() {
+        audioRecorder?.stop()
+        viewModel.onNoSpeech()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         voiceController?.destroy()
         voiceOutputController?.destroy()
+        audioRecorder?.stop()
+        audioPlayback?.stop()
     }
 }

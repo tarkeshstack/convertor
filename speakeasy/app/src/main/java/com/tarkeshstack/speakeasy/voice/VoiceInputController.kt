@@ -10,8 +10,10 @@ import android.speech.SpeechRecognizer
 /**
  * Thin wrapper around Android's system SpeechRecognizer for "listen, show live
  * partial text, transcribe" voice input. Recognition is handled entirely by the
- * system's speech service (the same one behind Google's voice typing) — this app
- * never records, stores, or uploads audio itself.
+ * system's speech service (the same one behind Google's voice typing) — this
+ * controller itself never records, stores, or uploads audio. A separate
+ * [AudioRecorderController] runs alongside it when the caller wants a replayable
+ * copy of the user's own voice; that recording stays local to the device.
  */
 class VoiceInputController(
     private val context: Context,
