@@ -8,6 +8,7 @@ on:
     paths:
       - "speakeasy/**"
       - ".github/workflows/speakeasy-build.yml"
+      - ".github/scripts/speakeasy-smoke-test.sh"
   workflow_dispatch: {}
 
 permissions:
