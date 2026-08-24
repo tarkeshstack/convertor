@@ -1,0 +1,58 @@
+name: SpeakEasy - Build debug APK
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+    paths:
+      - "speakeasy/**"
+      - ".github/workflows/speakeasy-build.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    defaults:
+      run:
+        working-directory: speakeasy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: speakeasy-debug-apk
+          path: speakeasy/app/build/outputs/apk/debug/*.apk
+
+      # Workflow-run artifacts only download via a signed Azure blob URL that some
+      # sandboxes/CI viewers can't reach, so also commit the built APK straight into
+      # the repo (outside speakeasy/ so this commit doesn't retrigger the build).
+      - name: Commit built APK to repo
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir -p speakeasy-dist
+          cp speakeasy/app/build/outputs/apk/debug/*.apk speakeasy-dist/speakeasy-debug.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f speakeasy-dist/speakeasy-debug.apk
+          git diff --cached --quiet && echo "APK unchanged, nothing to commit" && exit 0
+          git commit -m "Add built SpeakEasy debug APK [skip ci]"
+          git push
