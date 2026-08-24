@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,19 +26,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
-import com.tarkeshstack.speakeasy.model.ConversationEntry
+import com.tarkeshstack.speakeasy.model.InterpretationEntry
+import com.tarkeshstack.speakeasy.model.Language
 import java.text.DateFormat
 import java.util.Date
 
 @Composable
 fun HistoryScreen(
-    history: List<ConversationEntry>,
+    history: List<InterpretationEntry>,
     onDelete: (String) -> Unit,
     onClearAll: () -> Unit,
-    onReplay: (String) -> Unit,
-    onPlayRecording: (String) -> Unit,
+    onReplay: (String, Language) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -55,7 +53,7 @@ fun HistoryScreen(
             Column {
                 Text("History", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    "${history.size} practice session${if (history.size == 1) "" else "s"}",
+                    "${history.size} translation${if (history.size == 1) "" else "s"}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -73,12 +71,12 @@ fun HistoryScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        "No practice sessions yet.",
+                        "No translations yet.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        "Speak on the Practice tab to build your history.",
+                        "Speak on the Interpret tab to build your history.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -87,7 +85,7 @@ fun HistoryScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(history, key = { it.id }) { entry ->
-                    HistoryItem(entry = entry, onDelete = onDelete, onReplay = onReplay, onPlayRecording = onPlayRecording)
+                    HistoryItem(entry = entry, onDelete = onDelete, onReplay = onReplay)
                 }
             }
         }
@@ -96,10 +94,9 @@ fun HistoryScreen(
 
 @Composable
 private fun HistoryItem(
-    entry: ConversationEntry,
+    entry: InterpretationEntry,
     onDelete: (String) -> Unit,
-    onReplay: (String) -> Unit,
-    onPlayRecording: (String) -> Unit,
+    onReplay: (String, Language) -> Unit,
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -112,27 +109,20 @@ private fun HistoryItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(entry.timestamp)),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column {
+                    Text(
+                        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(entry.timestamp)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        "${entry.sourceLanguage.displayName} → ${entry.targetLanguage.displayName}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (entry.issueCount > 0) {
-                        Text(
-                            "${entry.issueCount} fix${if (entry.issueCount > 1) "es" else ""}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.padding(end = 8.dp),
-                        )
-                    }
-                    val audioPath = entry.audioFilePath
-                    if (audioPath != null) {
-                        IconButton(onClick = { onPlayRecording(audioPath) }) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Play your recording", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    IconButton(onClick = { onReplay(entry.corrected) }) {
+                    IconButton(onClick = { onReplay(entry.translatedText, entry.targetLanguage) }) {
                         Icon(Icons.Filled.VolumeUp, contentDescription = "Replay", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     IconButton(onClick = { onDelete(entry.id) }) {
@@ -140,26 +130,18 @@ private fun HistoryItem(
                     }
                 }
             }
+            Spacer(Modifier.height(4.dp))
             Text(
-                entry.original,
-                style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                entry.originalText,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                entry.corrected,
+                entry.translatedText,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            val simplified = entry.simplified
-            if (simplified != null) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Simpler: $simplified",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
-            }
         }
     }
 }

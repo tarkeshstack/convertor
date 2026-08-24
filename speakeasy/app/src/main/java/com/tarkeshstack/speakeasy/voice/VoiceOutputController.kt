@@ -9,8 +9,8 @@ import java.util.Locale
 import java.util.UUID
 
 /**
- * Reads corrected/simplified sentences back to the user via Android's system
- * text-to-speech engine. Nothing here is recorded or sent anywhere.
+ * Reads text back to the user via Android's system text-to-speech engine, in whichever
+ * language the caller asks for. Nothing here is recorded or sent anywhere.
  */
 class VoiceOutputController(context: Context) {
 
@@ -21,32 +21,35 @@ class VoiceOutputController(context: Context) {
     init {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.US
-                // A language-learner reading this back needs it noticeably slower than
-                // natural speech (1.0), not just a shade under it.
-                tts?.setSpeechRate(0.72f)
+                tts?.setSpeechRate(1.0f)
                 ready = true
             }
         }
     }
 
-    /** [onDone] always fires on the main thread, whether speech succeeded, failed, or
-     *  the engine isn't ready — callers can safely act on it. */
-    fun speak(text: String, onDone: () -> Unit = {}) {
+    /** [onResult] fires with whether speech actually started — false if the engine isn't
+     *  ready, the text is blank, or this device's TTS has no voice data installed for
+     *  [languageTag]. Always fires, on the main thread. */
+    fun speak(text: String, languageTag: String, onResult: (Boolean) -> Unit = {}) {
         val engine = tts
         if (engine == null || !ready || text.isBlank()) {
-            mainHandler.post(onDone)
+            mainHandler.post { onResult(false) }
+            return
+        }
+        val languageResult = engine.setLanguage(Locale.forLanguageTag(languageTag))
+        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+            mainHandler.post { onResult(false) }
             return
         }
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) {
-                mainHandler.post(onDone)
+                mainHandler.post { onResult(true) }
             }
 
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {
-                mainHandler.post(onDone)
+                mainHandler.post { onResult(false) }
             }
         })
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, UUID.randomUUID().toString())

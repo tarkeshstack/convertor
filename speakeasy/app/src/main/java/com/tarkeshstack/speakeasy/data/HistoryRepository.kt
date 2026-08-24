@@ -1,78 +1,69 @@
 package com.tarkeshstack.speakeasy.data
 
 import android.content.Context
-import com.tarkeshstack.speakeasy.model.ConversationEntry
+import com.tarkeshstack.speakeasy.model.InterpretationEntry
+import com.tarkeshstack.speakeasy.model.Language
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** Persists the practice conversation history as a small JSON file in app-private storage. */
+/** Persists the interpretation history as a small JSON file in app-private storage. */
 class HistoryRepository(private val context: Context) {
 
-    private val file: File get() = File(context.filesDir, "conversation_history.json")
+    private val file: File get() = File(context.filesDir, "interpretation_history.json")
 
-    suspend fun loadAll(): List<ConversationEntry> = withContext(Dispatchers.IO) {
+    suspend fun loadAll(): List<InterpretationEntry> = withContext(Dispatchers.IO) {
         loadAllUnsorted().sortedByDescending { it.timestamp }
     }
 
-    suspend fun saveEntry(entry: ConversationEntry): List<ConversationEntry> = withContext(Dispatchers.IO) {
+    suspend fun saveEntry(entry: InterpretationEntry): List<InterpretationEntry> = withContext(Dispatchers.IO) {
         val updated = listOf(entry) + loadAllUnsorted()
         writeAll(updated)
         updated.sortedByDescending { it.timestamp }
     }
 
-    suspend fun deleteEntry(id: String): List<ConversationEntry> = withContext(Dispatchers.IO) {
-        val all = loadAllUnsorted()
-        all.firstOrNull { it.id == id }?.audioFilePath?.let { deleteAudioFile(it) }
-        val updated = all.filterNot { it.id == id }
+    suspend fun deleteEntry(id: String): List<InterpretationEntry> = withContext(Dispatchers.IO) {
+        val updated = loadAllUnsorted().filterNot { it.id == id }
         writeAll(updated)
         updated.sortedByDescending { it.timestamp }
     }
 
     suspend fun clearAll() = withContext(Dispatchers.IO) {
-        loadAllUnsorted().forEach { it.audioFilePath?.let { path -> deleteAudioFile(path) } }
         if (file.exists()) file.delete()
         Unit
     }
 
-    private fun deleteAudioFile(path: String) {
-        runCatching { File(path).takeIf { it.exists() }?.delete() }
-    }
-
-    private fun loadAllUnsorted(): List<ConversationEntry> {
+    private fun loadAllUnsorted(): List<InterpretationEntry> {
         if (!file.exists()) return emptyList()
         val array = JSONArray(file.readText())
-        return (0 until array.length()).map { i ->
+        return (0 until array.length()).mapNotNull { i ->
             val obj = array.getJSONObject(i)
-            val categories = obj.optJSONArray("issueCategories")
-            ConversationEntry(
+            val source = Language.entries.find { it.name == obj.optString("sourceLanguage") } ?: return@mapNotNull null
+            val target = Language.entries.find { it.name == obj.optString("targetLanguage") } ?: return@mapNotNull null
+            InterpretationEntry(
                 id = obj.getString("id"),
                 timestamp = obj.getLong("timestamp"),
-                original = obj.getString("original"),
-                corrected = obj.getString("corrected"),
-                simplified = obj.optString("simplified", "").ifBlank { null },
-                issueCount = obj.optInt("issueCount", 0),
-                issueCategories = categories?.let { arr -> (0 until arr.length()).map { arr.getString(it) } } ?: emptyList(),
-                audioFilePath = obj.optString("audioFilePath", "").ifBlank { null },
+                originalText = obj.getString("originalText"),
+                sourceLanguage = source,
+                translatedText = obj.getString("translatedText"),
+                targetLanguage = target,
             )
         }
     }
 
-    private fun writeAll(entries: List<ConversationEntry>) {
+    private fun writeAll(entries: List<InterpretationEntry>) {
         val array = JSONArray()
         entries.forEach { entry ->
             array.put(
                 JSONObject().apply {
                     put("id", entry.id)
                     put("timestamp", entry.timestamp)
-                    put("original", entry.original)
-                    put("corrected", entry.corrected)
-                    put("simplified", entry.simplified ?: "")
-                    put("issueCount", entry.issueCount)
-                    put("issueCategories", JSONArray(entry.issueCategories))
-                    put("audioFilePath", entry.audioFilePath ?: "")
+                    put("originalText", entry.originalText)
+                    put("sourceLanguage", entry.sourceLanguage.name)
+                    put("translatedText", entry.translatedText)
+                    put("targetLanguage", entry.targetLanguage.name)
                 },
             )
         }

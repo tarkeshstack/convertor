@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -27,10 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.tarkeshstack.speakeasy.model.Tab
 import com.tarkeshstack.speakeasy.ui.HistoryScreen
-import com.tarkeshstack.speakeasy.ui.PracticeScreen
+import com.tarkeshstack.speakeasy.ui.InterpreterScreen
 import com.tarkeshstack.speakeasy.ui.theme.SpeakEasyTheme
-import com.tarkeshstack.speakeasy.voice.AudioPlaybackController
-import com.tarkeshstack.speakeasy.voice.AudioRecorderController
 import com.tarkeshstack.speakeasy.voice.VoiceInputController
 import com.tarkeshstack.speakeasy.voice.VoiceOutputController
 
@@ -39,8 +37,6 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private var voiceController: VoiceInputController? = null
     private var voiceOutputController: VoiceOutputController? = null
-    private var audioRecorder: AudioRecorderController? = null
-    private var audioPlayback: AudioPlaybackController? = null
 
     private val requestMicPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -56,16 +52,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        audioRecorder = AudioRecorderController(this)
-        audioPlayback = AudioPlaybackController()
         voiceController = VoiceInputController(
             context = this,
-            onResult = ::handleVoiceResult,
+            onResult = viewModel::onVoiceResult,
             onPartialResult = viewModel::onPartialTranscript,
             onListeningChanged = viewModel::onListeningChanged,
             onVolumeChanged = viewModel::onRmsChanged,
-            onRecognitionError = ::handleVoiceError,
-            onNoSpeech = ::handleNoSpeech,
+            onRecognitionError = viewModel::onVoiceError,
+            onNoSpeech = viewModel::onNoSpeech,
         )
         voiceOutputController = VoiceOutputController(this)
 
@@ -77,14 +71,8 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(state.pendingSpeech) {
                     val request = state.pendingSpeech ?: return@LaunchedEffect
                     viewModel.consumeSpeechRequest()
-                    voiceOutputController?.speak(request.text)
-                }
-
-                LaunchedEffect(state.pendingPlayback) {
-                    val request = state.pendingPlayback ?: return@LaunchedEffect
-                    viewModel.consumePlaybackRequest()
-                    audioPlayback?.play(request.filePath) { success ->
-                        if (!success) viewModel.onPlaybackFailed()
+                    voiceOutputController?.speak(request.text, request.language.bcp47) { success ->
+                        if (!success) viewModel.onPlaybackFailed(request.language)
                     }
                 }
 
@@ -99,10 +87,10 @@ class MainActivity : ComponentActivity() {
                     bottomBar = {
                         NavigationBar {
                             NavigationBarItem(
-                                selected = state.activeTab == Tab.Practice,
-                                onClick = { viewModel.setTab(Tab.Practice) },
-                                icon = { Icon(Icons.Filled.Mic, contentDescription = null) },
-                                label = { Text("Practice") },
+                                selected = state.activeTab == Tab.Interpret,
+                                onClick = { viewModel.setTab(Tab.Interpret) },
+                                icon = { Icon(Icons.Filled.Translate, contentDescription = null) },
+                                label = { Text("Interpret") },
                             )
                             NavigationBarItem(
                                 selected = state.activeTab == Tab.History,
@@ -115,25 +103,22 @@ class MainActivity : ComponentActivity() {
                 ) { padding ->
                     Column(modifier = Modifier.padding(padding)) {
                         when (state.activeTab) {
-                            Tab.Practice -> PracticeScreen(
+                            Tab.Interpret -> InterpreterScreen(
                                 state = state,
                                 onMicPress = ::onMicPress,
                                 onCancel = ::stopListening,
                                 onReplay = viewModel::replay,
-                                onPlayRecording = viewModel::playRecording,
+                                onSetSourceLanguage = viewModel::setSourceLanguage,
+                                onSetTargetLanguage = viewModel::setTargetLanguage,
                                 onOpenSettings = viewModel::openSettings,
                                 onCloseSettings = viewModel::closeSettings,
                                 onSaveApiKey = viewModel::saveApiKey,
-                                onRequestSummary = viewModel::requestSessionSummary,
-                                onCloseSummary = viewModel::closeSummary,
-                                onNewSession = viewModel::startNewSession,
                             )
                             Tab.History -> HistoryScreen(
                                 history = state.history,
                                 onDelete = viewModel::deleteHistoryEntry,
                                 onClearAll = viewModel::clearHistory,
                                 onReplay = viewModel::replay,
-                                onPlayRecording = viewModel::playRecording,
                             )
                         }
                     }
@@ -146,6 +131,10 @@ class MainActivity : ComponentActivity() {
         val state = viewModel.uiState.value
         if (state.isListening) {
             stopListening()
+            return
+        }
+        if (state.apiKey == null) {
+            viewModel.openSettings()
             return
         }
         viewModel.reset()
@@ -163,36 +152,17 @@ class MainActivity : ComponentActivity() {
 
     private fun startListening() {
         voiceOutputController?.stop()
-        audioPlayback?.stop()
-        audioRecorder?.start()
-        voiceController?.startListening()
+        val sourceLanguage = viewModel.uiState.value.sourceLanguage
+        voiceController?.startListening(sourceLanguage?.bcp47)
     }
 
     private fun stopListening() {
-        audioRecorder?.stop()
         voiceController?.stopListening()
-    }
-
-    private fun handleVoiceResult(text: String) {
-        val audioPath = audioRecorder?.stop()
-        viewModel.onVoiceResult(text, audioPath)
-    }
-
-    private fun handleVoiceError(message: String) {
-        audioRecorder?.stop()
-        viewModel.onVoiceError(message)
-    }
-
-    private fun handleNoSpeech() {
-        audioRecorder?.stop()
-        viewModel.onNoSpeech()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         voiceController?.destroy()
         voiceOutputController?.destroy()
-        audioRecorder?.stop()
-        audioPlayback?.stop()
     }
 }

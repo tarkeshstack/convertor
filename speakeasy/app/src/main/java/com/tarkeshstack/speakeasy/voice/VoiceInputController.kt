@@ -11,9 +11,7 @@ import android.speech.SpeechRecognizer
  * Thin wrapper around Android's system SpeechRecognizer for "listen, show live
  * partial text, transcribe" voice input. Recognition is handled entirely by the
  * system's speech service (the same one behind Google's voice typing) — this
- * controller itself never records, stores, or uploads audio. A separate
- * [AudioRecorderController] runs alongside it when the caller wants a replayable
- * copy of the user's own voice; that recording stays local to the device.
+ * controller never records, stores, or uploads audio itself.
  */
 class VoiceInputController(
     private val context: Context,
@@ -35,7 +33,11 @@ class VoiceInputController(
 ) {
     private var recognizer: SpeechRecognizer? = null
 
-    fun startListening() {
+    /** [languageTag] is a BCP-47 tag (e.g. "hi-IN") to recognize speech in a specific
+     *  language, or null to let the system use its own default recognition language —
+     *  the "auto-detect" mode, since the on-device recognizer has no public API to
+     *  detect the spoken language itself before transcribing. */
+    fun startListening(languageTag: String? = null) {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             onRecognitionError("Speech recognition isn't available on this device")
             return
@@ -96,6 +98,7 @@ class VoiceInputController(
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            if (languageTag != null) putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
             // Matches smart-launcher's proven-stable config: partial results off.
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             // The system default cuts off after roughly a second of silence, which reads as

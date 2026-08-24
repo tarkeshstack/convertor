@@ -3,8 +3,8 @@ package com.tarkeshstack.speakeasy.data
 import android.content.Context
 
 /** Stores the user's own Anthropic API key locally (app-private storage only —
- *  never bundled with the app or committed anywhere). Used to unlock the optional
- *  AI coaching feature; the app works fine without one, just without that feature. */
+ *  never bundled with the app or committed anywhere). Translation is powered by the
+ *  Claude API, so this is required to use the app at all. */
 class SettingsRepository(context: Context) {
 
     private val prefs = context.getSharedPreferences("speakeasy_settings", Context.MODE_PRIVATE)
