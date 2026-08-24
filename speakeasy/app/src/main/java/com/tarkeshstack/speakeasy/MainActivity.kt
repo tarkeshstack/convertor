@@ -54,8 +54,8 @@ class MainActivity : ComponentActivity() {
             onResult = viewModel::onVoiceResult,
             onPartialResult = viewModel::onPartialTranscript,
             onListeningChanged = viewModel::onListeningChanged,
-            onRmsChanged = viewModel::onRmsChanged,
-            onError = viewModel::onVoiceError,
+            onVolumeChanged = viewModel::onRmsChanged,
+            onRecognitionError = viewModel::onVoiceError,
             onNoSpeech = viewModel::onNoSpeech,
         )
         voiceOutputController = VoiceOutputController(this)

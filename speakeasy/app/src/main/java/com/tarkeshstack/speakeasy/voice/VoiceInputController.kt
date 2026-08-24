@@ -19,18 +19,23 @@ class VoiceInputController(
     private val onPartialResult: (String) -> Unit,
     private val onListeningChanged: (Boolean) -> Unit,
     /** Raw input level, roughly -2 (silent) to 10 (loud), emitted several times a second
-     *  while listening. Drives the waveform animation. */
-    private val onRmsChanged: (Float) -> Unit,
-    private val onError: (String) -> Unit,
+     *  while listening. Drives the waveform animation.
+     *
+     *  Named differently from RecognitionListener's own `onRmsChanged` on purpose: giving
+     *  this the same name previously caused the interface override below to call itself
+     *  instead of this property, an infinite recursion that crashed with a
+     *  StackOverflowError the instant listening started. */
+    private val onVolumeChanged: (Float) -> Unit,
+    private val onRecognitionError: (String) -> Unit,
     /** Session ended with nothing usable — silence, timeout, or no recognizable speech.
-     *  Distinct from [onError]: this is the routine case, not a user-facing failure. */
+     *  Distinct from [onRecognitionError]: this is the routine case, not a user-facing failure. */
     private val onNoSpeech: () -> Unit = {},
 ) {
     private var recognizer: SpeechRecognizer? = null
 
     fun startListening() {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            onError("Speech recognition isn't available on this device")
+            onRecognitionError("Speech recognition isn't available on this device")
             return
         }
         stopListening()
@@ -45,7 +50,7 @@ class VoiceInputController(
             override fun onBeginningOfSpeech() {}
 
             override fun onRmsChanged(rmsdB: Float) {
-                onRmsChanged(rmsdB)
+                onVolumeChanged(rmsdB)
             }
 
             override fun onBufferReceived(buffer: ByteArray?) {}
@@ -56,7 +61,7 @@ class VoiceInputController(
 
             override fun onError(error: Int) {
                 onListeningChanged(false)
-                onRmsChanged(-2f)
+                onVolumeChanged(-2f)
                 when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
                         onNoSpeech()
@@ -64,13 +69,13 @@ class VoiceInputController(
                     // previous session finished tearing down, not the user doing anything wrong.
                     SpeechRecognizer.ERROR_CLIENT, SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
                         onNoSpeech()
-                    else -> onError("Didn't catch that — try again")
+                    else -> onRecognitionError("Didn't catch that — try again")
                 }
             }
 
             override fun onResults(results: Bundle?) {
                 onListeningChanged(false)
-                onRmsChanged(-2f)
+                onVolumeChanged(-2f)
                 val text = results
                     ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     ?.firstOrNull()
@@ -107,7 +112,7 @@ class VoiceInputController(
         // callback, so without this the UI's "listening" flag can get stuck true forever.
         if (recognizer != null) {
             onListeningChanged(false)
-            onRmsChanged(-2f)
+            onVolumeChanged(-2f)
         }
         recognizer?.destroy()
         recognizer = null
