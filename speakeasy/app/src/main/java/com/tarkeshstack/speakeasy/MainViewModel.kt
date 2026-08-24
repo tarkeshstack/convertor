@@ -3,7 +3,9 @@ package com.tarkeshstack.speakeasy
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.tarkeshstack.speakeasy.coach.CoachService
 import com.tarkeshstack.speakeasy.data.HistoryRepository
+import com.tarkeshstack.speakeasy.data.SettingsRepository
 import com.tarkeshstack.speakeasy.grammar.GrammarService
 import com.tarkeshstack.speakeasy.model.ConversationEntry
 import com.tarkeshstack.speakeasy.model.AnalysisResult
@@ -26,20 +28,40 @@ data class UiState(
     val history: List<ConversationEntry> = emptyList(),
     val errorMessage: String? = null,
     val pendingSpeech: SpeechRequest? = null,
+    val apiKey: String? = null,
+    val showSettings: Boolean = false,
+    val coachLoading: Boolean = false,
+    val coachFeedback: String? = null,
+    val coachError: String? = null,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val grammarService = GrammarService()
     private val historyRepo = HistoryRepository(application)
+    private val settingsRepo = SettingsRepository(application)
+    private val coachService = CoachService()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            _uiState.update { it.copy(history = historyRepo.loadAll()) }
+            _uiState.update { it.copy(history = historyRepo.loadAll(), apiKey = settingsRepo.getApiKey()) }
         }
+    }
+
+    fun openSettings() {
+        _uiState.update { it.copy(showSettings = true) }
+    }
+
+    fun closeSettings() {
+        _uiState.update { it.copy(showSettings = false) }
+    }
+
+    fun saveApiKey(key: String) {
+        settingsRepo.setApiKey(key)
+        _uiState.update { it.copy(apiKey = settingsRepo.getApiKey(), showSettings = false) }
     }
 
     fun setTab(tab: Tab) {
@@ -85,7 +107,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onVoiceResult(text: String) {
-        _uiState.update { it.copy(status = PracticeStatus.Analyzing, liveTranscript = text) }
+        _uiState.update {
+            it.copy(
+                status = PracticeStatus.Analyzing,
+                liveTranscript = text,
+                coachFeedback = null,
+                coachError = null,
+                coachLoading = false,
+            )
+        }
         viewModelScope.launch {
             val analysis = try {
                 grammarService.analyze(text)
@@ -117,6 +147,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     pendingSpeech = SpeechRequest(System.currentTimeMillis(), analysis.corrected),
                 )
             }
+
+            requestCoachFeedback(analysis)
+        }
+    }
+
+    /** Runs alongside (not blocking) the rule-based feedback above — the practice result
+     *  already showed by the time this resolves, this just layers a coach's commentary
+     *  on top once it's ready. No-op if the user hasn't configured their own API key. */
+    private fun requestCoachFeedback(analysis: AnalysisResult) {
+        val apiKey = _uiState.value.apiKey ?: return
+        _uiState.update { it.copy(coachLoading = true, coachError = null) }
+        viewModelScope.launch {
+            coachService.coach(apiKey, analysis).fold(
+                onSuccess = { feedback ->
+                    _uiState.update { it.copy(coachLoading = false, coachFeedback = feedback) }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(coachLoading = false, coachError = error.message ?: "Coaching is unavailable right now.")
+                    }
+                },
+            )
         }
     }
 
@@ -130,7 +182,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun reset() {
         _uiState.update {
-            it.copy(status = PracticeStatus.Idle, liveTranscript = "", result = null, errorMessage = null)
+            it.copy(
+                status = PracticeStatus.Idle,
+                liveTranscript = "",
+                result = null,
+                errorMessage = null,
+                coachFeedback = null,
+                coachError = null,
+                coachLoading = false,
+            )
         }
     }
 

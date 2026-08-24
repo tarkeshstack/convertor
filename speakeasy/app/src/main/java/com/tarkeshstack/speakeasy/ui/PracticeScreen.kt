@@ -21,20 +21,28 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +52,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -58,19 +67,37 @@ fun PracticeScreen(
     onMicPress: () -> Unit,
     onCancel: () -> Unit,
     onReplay: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onCloseSettings: () -> Unit,
+    onSaveApiKey: (String) -> Unit,
 ) {
+    if (state.showSettings) {
+        ApiKeyDialog(currentKey = state.apiKey, onSave = onSaveApiKey, onDismiss = onCloseSettings)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(24.dp),
     ) {
-        Text("SpeakEasy", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-        Text(
-            "Practice speaking English out loud",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text("SpeakEasy", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    "Practice speaking English out loud",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
 
         Spacer(Modifier.height(24.dp))
 
@@ -110,6 +137,115 @@ fun PracticeScreen(
 
         state.result?.let { result ->
             FeedbackCard(result = result, onReplay = onReplay)
+            Spacer(Modifier.height(16.dp))
+            CoachSection(
+                hasApiKey = state.apiKey != null,
+                loading = state.coachLoading,
+                feedback = state.coachFeedback,
+                error = state.coachError,
+                onOpenSettings = onOpenSettings,
+                onReplay = onReplay,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ApiKeyDialog(currentKey: String?, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var input by remember { mutableStateOf(currentKey.orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("AI coach") },
+        text = {
+            Column {
+                Text(
+                    "Add your own Anthropic API key to unlock personalized coaching " +
+                        "feedback after each practice turn — praise, plain-language " +
+                        "explanations, and the natural way to say it. Stored only on " +
+                        "this device, never uploaded anywhere else. Get a key at " +
+                        "console.anthropic.com.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    label = { Text("Anthropic API key") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(input) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun CoachSection(
+    hasApiKey: Boolean,
+    loading: Boolean,
+    feedback: String?,
+    error: String?,
+    onOpenSettings: () -> Unit,
+    onReplay: (String) -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Label("Your coach says")
+            }
+
+            when {
+                !hasApiKey -> {
+                    Text(
+                        "Add an Anthropic API key to get personalized coaching — praise, plain-language explanations, and the natural way to say it.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(onClick = onOpenSettings) { Text("Add API key") }
+                }
+                loading -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Thinking about your sentence…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                error != null -> {
+                    Text(error, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                }
+                feedback != null -> {
+                    Text(
+                        feedback,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(onClick = { onReplay(feedback) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Hear your coach")
+                    }
+                }
+            }
         }
     }
 }

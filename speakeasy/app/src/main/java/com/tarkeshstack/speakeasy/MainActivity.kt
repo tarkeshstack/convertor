@@ -95,6 +95,9 @@ class MainActivity : ComponentActivity() {
                                 onMicPress = ::onMicPress,
                                 onCancel = ::stopListening,
                                 onReplay = viewModel::replay,
+                                onOpenSettings = viewModel::openSettings,
+                                onCloseSettings = viewModel::closeSettings,
+                                onSaveApiKey = viewModel::saveApiKey,
                             )
                             Tab.History -> HistoryScreen(
                                 history = state.history,

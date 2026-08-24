@@ -57,6 +57,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.1")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("com.anthropic:anthropic-java:2.34.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
