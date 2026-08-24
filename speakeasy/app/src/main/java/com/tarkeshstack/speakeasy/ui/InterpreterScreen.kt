@@ -40,12 +40,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.tarkeshstack.speakeasy.UiState
 import com.tarkeshstack.speakeasy.model.InterpretStatus
 import com.tarkeshstack.speakeasy.model.InterpretationResult
 import com.tarkeshstack.speakeasy.model.Language
+import com.tarkeshstack.speakeasy.ui.theme.AshokaChakraWatermark
+import com.tarkeshstack.speakeasy.ui.theme.TricolorBackground
 
 @Composable
 fun InterpreterScreen(
@@ -56,13 +59,15 @@ fun InterpreterScreen(
     onSetSourceLanguage: (Language?) -> Unit,
     onSetTargetLanguage: (Language) -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp),
-    ) {
-        Column {
+    Box(modifier = Modifier.fillMaxSize().background(TricolorBackground)) {
+        AshokaChakraWatermark(modifier = Modifier.align(Alignment.Center).size(320.dp))
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+        ) {
+            Column {
             Text("Interpreter", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Text(
                 "Speak, and hear it translated",
@@ -137,6 +142,7 @@ fun InterpreterScreen(
         state.result?.let { result ->
             ResultCard(result = result, onReplay = onReplay)
         }
+        }
     }
 }
 
@@ -152,10 +158,11 @@ private fun LanguagePicker(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .shadow(2.dp, RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surface)
                 .clickable { expanded = true }
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
             Text(
                 label.uppercase(),
@@ -207,6 +214,7 @@ private fun MicButton(status: InterpretStatus, onPress: () -> Unit) {
     Box(
         modifier = Modifier
             .size(size)
+            .shadow(8.dp, CircleShape)
             .clip(CircleShape)
             .background(background)
             .clickable(enabled = !busy, onClick = onPress),
@@ -247,6 +255,8 @@ private fun Waveform(level: Float, active: Boolean) {
 private fun ResultCard(result: InterpretationResult, onReplay: (String, Language) -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {

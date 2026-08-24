@@ -1,10 +1,10 @@
 package com.tarkeshstack.speakeasy.ui.theme
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
-private val Colors = darkColorScheme(
+private val Colors = lightColorScheme(
     primary = SpeakEasyPrimary,
     onPrimary = SpeakEasyOnPrimary,
     primaryContainer = SpeakEasyPrimaryContainer,

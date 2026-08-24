@@ -2,18 +2,30 @@ package com.tarkeshstack.speakeasy.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val SpeakEasyPrimary = Color(0xFF38BDF8)
-val SpeakEasyOnPrimary = Color(0xFF0F172A)
-val SpeakEasyPrimaryContainer = Color(0xFF0EA5E9)
-val SpeakEasyOnPrimaryContainer = Color(0xFFF8FAFC)
+// True Indian tricolor tones, used for accents and the Ashoka Chakra watermark — kept
+// saturated so buttons/icons still read clearly.
+val IndiaSaffron = Color(0xFFFF9933)
+val IndiaGreen = Color(0xFF138808)
+val IndiaChakraBlue = Color(0xFF0B3D91)
 
-val SpeakEasySecondary = Color(0xFF34D399)
-val SpeakEasyOnSecondary = Color(0xFF0F172A)
+// Softened, pastel versions of the same tricolor for the background gradient itself —
+// full-saturation flag colors behind body text would be loud and hurt readability, so
+// the background reads as a light, airy wash rather than a literal flag graphic.
+val IndiaSaffronSoft = Color(0xFFFFE9D2)
+val IndiaGreenSoft = Color(0xFFE1F5E4)
 
-val SpeakEasyBackground = Color(0xFF0F172A)
-val SpeakEasySurface = Color(0xFF1E293B)
-val SpeakEasySurfaceVariant = Color(0xFF273449)
-val SpeakEasyOnSurface = Color(0xFFF8FAFC)
-val SpeakEasyOnSurfaceVariant = Color(0xFF94A3B8)
-val SpeakEasyOutline = Color(0xFF334155)
-val SpeakEasyError = Color(0xFFF87171)
+val SpeakEasyPrimary = IndiaChakraBlue
+val SpeakEasyOnPrimary = Color(0xFFFFFFFF)
+val SpeakEasyPrimaryContainer = Color(0xFFDCE6FA)
+val SpeakEasyOnPrimaryContainer = IndiaChakraBlue
+
+val SpeakEasySecondary = IndiaGreen
+val SpeakEasyOnSecondary = Color(0xFFFFFFFF)
+
+val SpeakEasyBackground = Color(0xFFFFFBF6)
+val SpeakEasySurface = Color(0xFFFFFFFF)
+val SpeakEasySurfaceVariant = Color(0xFFF3F1EC)
+val SpeakEasyOnSurface = Color(0xFF221D14)
+val SpeakEasyOnSurfaceVariant = Color(0xFF6F6A60)
+val SpeakEasyOutline = Color(0xFFE2DDD3)
+val SpeakEasyError = Color(0xFFD64545)

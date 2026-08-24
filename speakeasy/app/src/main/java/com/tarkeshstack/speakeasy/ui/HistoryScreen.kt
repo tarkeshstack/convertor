@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +30,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.tarkeshstack.speakeasy.model.InterpretationEntry
 import com.tarkeshstack.speakeasy.model.Language
+import com.tarkeshstack.speakeasy.ui.theme.AshokaChakraWatermark
+import com.tarkeshstack.speakeasy.ui.theme.TricolorBackground
 import java.text.DateFormat
 import java.util.Date
 
@@ -39,12 +42,14 @@ fun HistoryScreen(
     onClearAll: () -> Unit,
     onReplay: (String, Language) -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp),
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(TricolorBackground)) {
+        AshokaChakraWatermark(modifier = Modifier.align(Alignment.Center).size(320.dp))
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -89,6 +94,7 @@ fun HistoryScreen(
                 }
             }
         }
+        }
     }
 }
 
@@ -100,6 +106,7 @@ private fun HistoryItem(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
