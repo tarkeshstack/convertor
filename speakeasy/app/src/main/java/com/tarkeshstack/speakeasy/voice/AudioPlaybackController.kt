@@ -1,7 +1,10 @@
 package com.tarkeshstack.speakeasy.voice
 
 import android.media.MediaPlayer
+import android.util.Log
 import java.io.File
+
+private const val TAG = "AudioPlayback"
 
 /** Plays back a user's own recorded voice clip (see [AudioRecorderController]) from a
  *  local file path. Purely local playback — nothing here touches the network. */
@@ -9,12 +12,14 @@ class AudioPlaybackController {
 
     private var player: MediaPlayer? = null
 
-    /** [onDone] always fires, whether playback succeeded, failed, or the file is
-     *  missing/unplayable — callers can safely act on it. */
-    fun play(filePath: String, onDone: () -> Unit = {}) {
+    /** [onResult] always fires with whether playback actually started and completed —
+     *  callers should surface a `false` result to the user instead of failing silently,
+     *  since a silent no-op here is indistinguishable from the app doing nothing at all. */
+    fun play(filePath: String, onResult: (Boolean) -> Unit = {}) {
         stop()
         if (!File(filePath).exists()) {
-            onDone()
+            Log.w(TAG, "Recording file missing: $filePath")
+            onResult(false)
             return
         }
         try {
@@ -22,19 +27,21 @@ class AudioPlaybackController {
                 setDataSource(filePath)
                 setOnCompletionListener {
                     release()
-                    onDone()
+                    onResult(true)
                 }
-                setOnErrorListener { _, _, _ ->
+                setOnErrorListener { _, what, extra ->
+                    Log.w(TAG, "Playback error for $filePath: what=$what extra=$extra")
                     release()
-                    onDone()
+                    onResult(false)
                     true
                 }
                 prepare()
                 start()
             }
         } catch (e: Exception) {
+            Log.w(TAG, "Couldn't play recording: $filePath", e)
             release()
-            onDone()
+            onResult(false)
         }
     }
 

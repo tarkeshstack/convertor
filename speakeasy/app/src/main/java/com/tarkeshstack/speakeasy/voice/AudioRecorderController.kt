@@ -3,7 +3,10 @@ package com.tarkeshstack.speakeasy.voice
 import android.content.Context
 import android.media.MediaRecorder
 import android.os.Build
+import android.util.Log
 import java.io.File
+
+private const val TAG = "AudioRecorder"
 
 /**
  * Records the user's own voice to a file in app-private storage, purely so it can be
@@ -25,6 +28,11 @@ class AudioRecorderController(private val context: Context) {
     fun start(): String? {
         val dir = File(context.filesDir, "recordings").apply { mkdirs() }
         val file = File(dir, "rec_${System.currentTimeMillis()}.m4a")
+        // Cleared up front, not just on the success path — otherwise a failed start()
+        // (e.g. the system speech-recognition process already has exclusive mic access)
+        // leaves this pointing at whichever file the *previous* turn recorded, and stop()
+        // silently hands that stale path back as if it belonged to the current turn.
+        outputFile = null
         return try {
             val mr = newRecorder().apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -38,6 +46,7 @@ class AudioRecorderController(private val context: Context) {
             outputFile = file
             file.absolutePath
         } catch (e: Exception) {
+            Log.w(TAG, "Couldn't start recording (likely mic contention with speech recognition)", e)
             release()
             null
         }
@@ -48,8 +57,11 @@ class AudioRecorderController(private val context: Context) {
     fun stop(): String? {
         return try {
             recorder?.stop()
-            outputFile?.takeIf { it.exists() && it.length() > 0 }?.absolutePath
+            val path = outputFile?.takeIf { it.exists() && it.length() > 0 }?.absolutePath
+            if (path == null) Log.w(TAG, "Recording stopped but produced no usable file")
+            path
         } catch (e: Exception) {
+            Log.w(TAG, "stop() failed — recording likely too short or never started", e)
             null
         } finally {
             release()

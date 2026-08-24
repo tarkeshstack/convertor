@@ -42,6 +42,9 @@ data class UiState(
     val summaryLoading: Boolean = false,
     val summaryResult: String? = null,
     val summaryError: String? = null,
+    /** Set when a recording exists but couldn't actually be played back, so the failure
+     *  is visible instead of the button silently doing nothing — see AudioPlaybackController. */
+    val playbackError: String? = null,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -249,6 +252,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun consumePlaybackRequest() {
         _uiState.update { it.copy(pendingPlayback = null) }
+    }
+
+    fun onPlaybackFailed() {
+        _uiState.update { it.copy(playbackError = "Couldn't play that recording.") }
+    }
+
+    fun consumePlaybackError() {
+        _uiState.update { it.copy(playbackError = null) }
     }
 
     fun consumeSpeechRequest() {

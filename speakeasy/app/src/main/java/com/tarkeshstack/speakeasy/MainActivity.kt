@@ -16,10 +16,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.tarkeshstack.speakeasy.model.Tab
@@ -69,6 +72,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             SpeakEasyTheme {
                 val state by viewModel.uiState.collectAsState()
+                val snackbarHostState = remember { SnackbarHostState() }
 
                 LaunchedEffect(state.pendingSpeech) {
                     val request = state.pendingSpeech ?: return@LaunchedEffect
@@ -79,10 +83,19 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(state.pendingPlayback) {
                     val request = state.pendingPlayback ?: return@LaunchedEffect
                     viewModel.consumePlaybackRequest()
-                    audioPlayback?.play(request.filePath)
+                    audioPlayback?.play(request.filePath) { success ->
+                        if (!success) viewModel.onPlaybackFailed()
+                    }
+                }
+
+                LaunchedEffect(state.playbackError) {
+                    val message = state.playbackError ?: return@LaunchedEffect
+                    snackbarHostState.showSnackbar(message)
+                    viewModel.consumePlaybackError()
                 }
 
                 Scaffold(
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
                     bottomBar = {
                         NavigationBar {
                             NavigationBarItem(
