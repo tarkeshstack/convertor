@@ -39,9 +39,14 @@ sleep 5
 echo "== after launch =="
 check_for_crash
 
-adb shell uiautomator dump /sdcard/window_dump.xml
-adb pull /sdcard/window_dump.xml window_dump.xml
-TAP=$(python3 -c "
+# The UI (or the accessibility service backing UiAutomator) can take a beat
+# to settle right after a cold start, so retry the dump+search a few times
+# instead of treating one empty result as "no mic button".
+TAP=""
+for attempt in 1 2 3 4 5; do
+  adb shell uiautomator dump /sdcard/window_dump.xml > /dev/null
+  adb pull /sdcard/window_dump.xml window_dump.xml > /dev/null
+  TAP=$(python3 -c "
 import re
 with open('window_dump.xml') as f:
     data = f.read()
@@ -50,15 +55,24 @@ if m:
     x1, y1, x2, y2 = map(int, m.groups())
     print(f'{(x1 + x2) // 2} {(y1 + y2) // 2}')
 ")
+  if [ -n "$TAP" ]; then
+    break
+  fi
+  echo "Mic button not found in UiAutomator dump on attempt $attempt, retrying..."
+  sleep 3
+done
 
 if [ -z "$TAP" ]; then
-  echo "::warning::Could not find the mic button via UiAutomator dump; skipping tap-based check"
-else
-  echo "Tapping mic button at: $TAP"
-  adb shell input tap $TAP
-  sleep 5
-  echo "== after tapping the mic button (permission + recognizer start) =="
-  check_for_crash
+  echo "::error::Could not find the mic button via UiAutomator dump after 5 attempts"
+  echo "----- window_dump.xml -----"
+  cat window_dump.xml
+  exit 1
 fi
+
+echo "Tapping mic button at: $TAP"
+adb shell input tap $TAP
+sleep 5
+echo "== after tapping the mic button (permission + recognizer start) =="
+check_for_crash
 
 echo "App launched, stayed running, and survived a mic tap — smoke test passed"
