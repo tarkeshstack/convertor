@@ -35,7 +35,7 @@ adb logcat -c
 adb shell pm grant com.tarkeshstack.speakeasy android.permission.RECORD_AUDIO
 
 adb shell am start -n com.tarkeshstack.speakeasy/.MainActivity -W
-sleep 5
+sleep 10
 echo "== after launch =="
 check_for_crash
 
@@ -43,7 +43,7 @@ check_for_crash
 # to settle right after a cold start, so retry the dump+search a few times
 # instead of treating one empty result as "no mic button".
 TAP=""
-for attempt in 1 2 3 4 5; do
+for attempt in 1 2 3 4 5 6 7 8; do
   adb shell uiautomator dump /sdcard/window_dump.xml > /dev/null
   adb pull /sdcard/window_dump.xml window_dump.xml > /dev/null
   TAP=$(python3 -c "
@@ -58,8 +58,31 @@ if m:
   if [ -n "$TAP" ]; then
     break
   fi
-  echo "Mic button not found in UiAutomator dump on attempt $attempt, retrying..."
-  sleep 3
+
+  # A system "isn't responding" dialog for an unrelated app (seen on freshly-booted
+  # CI emulators once installing a larger APK does enough PackageManager/broadcast
+  # work to briefly stall something else, e.g. the launcher) can sit in front of our
+  # activity and block automation from ever finding it. Dismiss it via "Wait" so the
+  # system gets a chance to recover, instead of just retrying against the same
+  # blocking dialog every time.
+  if grep -q "isn't responding" window_dump.xml; then
+    echo "A system ANR dialog for another app is blocking the UI (attempt $attempt) — dismissing it and retrying..."
+    WAIT_TAP=$(python3 -c "
+import re
+with open('window_dump.xml') as f:
+    data = f.read()
+m = re.search(r'resource-id=\"android:id/aerr_wait\"[^>]*bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', data)
+if m:
+    x1, y1, x2, y2 = map(int, m.groups())
+    print(f'{(x1 + x2) // 2} {(y1 + y2) // 2}')
+")
+    if [ -n "$WAIT_TAP" ]; then
+      adb shell input tap $WAIT_TAP
+    fi
+  else
+    echo "Mic button not found in UiAutomator dump on attempt $attempt, retrying..."
+  fi
+  sleep 5
 done
 
 if [ -z "$TAP" ]; then
