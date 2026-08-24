@@ -16,6 +16,16 @@ android {
     }
 
     buildTypes {
+        // Debug DEX with zero shrinking pulls in every unused class from Compose,
+        // Play Services, and ML Kit's transitive dependency graph — 43MB of classes.dex
+        // alone before this. R8 code shrinking (still debuggable, no resource shrinking
+        // so ML Kit's own runtime-loaded res/raw and assets/ files stay untouched) cuts
+        // that down a lot without changing behavior; AARs ship their own consumer
+        // ProGuard/keep rules, so no extra rules should be needed here.
+        debug {
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
