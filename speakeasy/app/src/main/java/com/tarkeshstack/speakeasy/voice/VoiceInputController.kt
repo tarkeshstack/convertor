@@ -89,7 +89,8 @@ class VoiceInputController(
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            // Matches smart-launcher's proven-stable config: partial results off.
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             // The system default cuts off after roughly a second of silence, which reads as
             // "the mic isn't waiting" the moment you pause mid-sentence. These (undocumented
             // but widely honored, including by Google's own recognizer) extras give it more
