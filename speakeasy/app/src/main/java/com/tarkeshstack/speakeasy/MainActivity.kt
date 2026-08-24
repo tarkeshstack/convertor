@@ -110,9 +110,6 @@ class MainActivity : ComponentActivity() {
                                 onReplay = viewModel::replay,
                                 onSetSourceLanguage = viewModel::setSourceLanguage,
                                 onSetTargetLanguage = viewModel::setTargetLanguage,
-                                onOpenSettings = viewModel::openSettings,
-                                onCloseSettings = viewModel::closeSettings,
-                                onSaveApiKey = viewModel::saveApiKey,
                             )
                             Tab.History -> HistoryScreen(
                                 history = state.history,
@@ -131,10 +128,6 @@ class MainActivity : ComponentActivity() {
         val state = viewModel.uiState.value
         if (state.isListening) {
             stopListening()
-            return
-        }
-        if (state.apiKey == null) {
-            viewModel.openSettings()
             return
         }
         viewModel.reset()

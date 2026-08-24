@@ -12,8 +12,8 @@ enum class Language(val displayName: String, val bcp47: String) {
 
 data class InterpretationResult(
     val originalText: String,
-    /** The language Claude detected the text as — the user's own pick when they chose
-     *  one, or a best-effort guess from the text itself when they left it on auto. */
+    /** The language on-device detection identified the text as — the user's own pick
+     *  when they chose one, or a best-effort guess from the text itself on auto. */
     val sourceLanguage: Language,
     val autoDetected: Boolean,
     val translatedText: String,

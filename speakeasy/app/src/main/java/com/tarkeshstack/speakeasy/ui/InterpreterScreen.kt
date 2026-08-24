@@ -20,10 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,9 +29,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,7 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.tarkeshstack.speakeasy.UiState
 import com.tarkeshstack.speakeasy.model.InterpretStatus
@@ -60,36 +55,20 @@ fun InterpreterScreen(
     onReplay: (String, Language) -> Unit,
     onSetSourceLanguage: (Language?) -> Unit,
     onSetTargetLanguage: (Language) -> Unit,
-    onOpenSettings: () -> Unit,
-    onCloseSettings: () -> Unit,
-    onSaveApiKey: (String) -> Unit,
 ) {
-    if (state.showSettings) {
-        ApiKeyDialog(currentKey = state.apiKey, onSave = onSaveApiKey, onDismiss = onCloseSettings)
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(24.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Text("Interpreter", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                Text(
-                    "Speak, and hear it translated",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            IconButton(onClick = onOpenSettings) {
-                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+        Column {
+            Text("Interpreter", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                "Speak, and hear it translated",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         Spacer(Modifier.height(16.dp))
@@ -205,44 +184,8 @@ private fun LanguagePicker(
     }
 }
 
-@Composable
-private fun ApiKeyDialog(currentKey: String?, onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    var input by remember { mutableStateOf(currentKey.orEmpty()) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Anthropic API key") },
-        text = {
-            Column {
-                Text(
-                    "Translation is powered by the Claude API, so it needs your own " +
-                        "Anthropic API key to work. Stored only on this device, never " +
-                        "uploaded anywhere else. Get a key at console.anthropic.com.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    label = { Text("Anthropic API key") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(input) }) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-}
-
 private fun statusMessage(state: UiState): String = when (state.status) {
-    InterpretStatus.Idle -> if (state.apiKey == null) "Add your API key to start interpreting" else "Tap the mic and speak"
+    InterpretStatus.Idle -> "Tap the mic and speak"
     InterpretStatus.Listening -> "Listening… tap again to stop"
     InterpretStatus.Translating -> "Translating…"
     InterpretStatus.Result -> "Here's your translation"

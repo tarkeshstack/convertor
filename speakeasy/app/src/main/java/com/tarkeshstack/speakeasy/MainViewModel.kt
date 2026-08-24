@@ -4,8 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tarkeshstack.speakeasy.data.HistoryRepository
-import com.tarkeshstack.speakeasy.data.SettingsRepository
-import com.tarkeshstack.speakeasy.interpret.InterpreterService
+import com.tarkeshstack.speakeasy.interpret.TranslationService
 import com.tarkeshstack.speakeasy.model.InterpretStatus
 import com.tarkeshstack.speakeasy.model.InterpretationEntry
 import com.tarkeshstack.speakeasy.model.InterpretationResult
@@ -25,45 +24,29 @@ data class UiState(
     val rmsLevel: Float = 0f,
     val isListening: Boolean = false,
     /** Null means "auto-detect" — the speech recognizer falls back to the device's
-     *  default recognition language, and Claude detects the actual spoken language from
-     *  the resulting text when translating. */
+     *  default recognition language, and on-device language identification detects the
+     *  actual spoken language from the resulting text when translating. */
     val sourceLanguage: Language? = null,
     val targetLanguage: Language = Language.English,
     val result: InterpretationResult? = null,
     val history: List<InterpretationEntry> = emptyList(),
     val errorMessage: String? = null,
     val pendingSpeech: SpeechRequest? = null,
-    val apiKey: String? = null,
-    val showSettings: Boolean = false,
     val playbackError: String? = null,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val historyRepo = HistoryRepository(application)
-    private val settingsRepo = SettingsRepository(application)
-    private val interpreterService = InterpreterService()
+    private val translationService = TranslationService()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            _uiState.update { it.copy(history = historyRepo.loadAll(), apiKey = settingsRepo.getApiKey()) }
+            _uiState.update { it.copy(history = historyRepo.loadAll()) }
         }
-    }
-
-    fun openSettings() {
-        _uiState.update { it.copy(showSettings = true) }
-    }
-
-    fun closeSettings() {
-        _uiState.update { it.copy(showSettings = false) }
-    }
-
-    fun saveApiKey(key: String) {
-        settingsRepo.setApiKey(key)
-        _uiState.update { it.copy(apiKey = settingsRepo.getApiKey(), showSettings = false) }
     }
 
     fun setTab(tab: Tab) {
@@ -112,17 +95,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onVoiceResult(text: String) {
-        val apiKey = _uiState.value.apiKey
-        if (apiKey == null) {
-            _uiState.update { it.copy(status = InterpretStatus.Idle, showSettings = true) }
-            return
-        }
         val target = _uiState.value.targetLanguage
         val sourceHint = _uiState.value.sourceLanguage
         _uiState.update { it.copy(status = InterpretStatus.Translating, liveTranscript = text) }
 
         viewModelScope.launch {
-            interpreterService.translate(apiKey, text, sourceHint, target).fold(
+            translationService.translate(text, sourceHint, target).fold(
                 onSuccess = { translation ->
                     val result = InterpretationResult(
                         originalText = text,
