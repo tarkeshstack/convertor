@@ -12,9 +12,9 @@ adb install -r "$APK"
 
 adb logcat -c
 adb shell am start -n com.tarkeshstack.speakeasy/.MainActivity -W
-sleep 10
+sleep 15
 
-adb logcat -d > logcat.txt
+adb logcat -d -b all > logcat.txt
 echo "----- last 400 lines of logcat -----"
 tail -n 400 logcat.txt
 
