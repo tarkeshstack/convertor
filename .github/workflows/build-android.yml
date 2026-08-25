@@ -6,6 +6,9 @@ on:
       - "**"
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -40,3 +43,19 @@ jobs:
           name: writing-practice-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      # Actions artifacts are served from Azure Blob Storage, which isn't
+      # reachable from every environment that wants the file. Also publish
+      # it to a plain git branch (fetchable with an ordinary git clone) as
+      # an orphan commit so this doesn't bloat the real branch history.
+      - name: Publish APK to a fetchable build branch
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk /tmp/writing-practice-debug.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan builds/writing-practice-debug-apk
+          git rm -rf . > /dev/null
+          cp /tmp/writing-practice-debug.apk ./writing-practice-debug.apk
+          git add writing-practice-debug.apk
+          git commit -m "Debug APK build from ${GITHUB_SHA}"
+          git push --force origin HEAD:refs/heads/builds/writing-practice-debug-apk
