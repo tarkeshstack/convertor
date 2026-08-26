@@ -14,6 +14,11 @@ val IndiaChakraBlue = Color(0xFF0B3D91)
 val IndiaSaffronSoft = Color(0xFFFFE9D2)
 val IndiaGreenSoft = Color(0xFFE1F5E4)
 
+// Extra accent hues for the language-badge header — round out the tricolor set so all
+// five supported languages get a visually distinct badge.
+val LanguageMaroon = Color(0xFFB3314D)
+val LanguageTeal = Color(0xFF1E8A7A)
+
 val SpeakEasyPrimary = IndiaChakraBlue
 val SpeakEasyOnPrimary = Color(0xFFFFFFFF)
 val SpeakEasyPrimaryContainer = Color(0xFFDCE6FA)

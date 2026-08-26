@@ -42,12 +42,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.tarkeshstack.speakeasy.UiState
 import com.tarkeshstack.speakeasy.model.InterpretStatus
 import com.tarkeshstack.speakeasy.model.InterpretationResult
 import com.tarkeshstack.speakeasy.model.Language
 import com.tarkeshstack.speakeasy.ui.theme.AshokaChakraWatermark
+import com.tarkeshstack.speakeasy.ui.theme.IndiaChakraBlue
+import com.tarkeshstack.speakeasy.ui.theme.IndiaGreen
+import com.tarkeshstack.speakeasy.ui.theme.IndiaSaffron
+import com.tarkeshstack.speakeasy.ui.theme.LanguageMaroon
+import com.tarkeshstack.speakeasy.ui.theme.LanguageTeal
 import com.tarkeshstack.speakeasy.ui.theme.TricolorBackground
 
 @Composable
@@ -67,14 +74,7 @@ fun InterpreterScreen(
                 .fillMaxSize()
                 .padding(24.dp),
         ) {
-            Column {
-            Text("Interpreter", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-            Text(
-                "Speak, and hear it translated",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            InterpreterHeader()
 
         Spacer(Modifier.height(16.dp))
 
@@ -143,6 +143,52 @@ fun InterpreterScreen(
             ResultCard(result = result, onReplay = onReplay)
         }
         }
+    }
+}
+
+private data class LanguageBadge(val glyph: String, val color: Color)
+
+private val HEADER_LANGUAGE_BADGES = listOf(
+    LanguageBadge("A", IndiaGreen),
+    LanguageBadge("अ", IndiaSaffron),
+    LanguageBadge("அ", LanguageMaroon),
+    LanguageBadge("Ñ", LanguageTeal),
+    LanguageBadge("É", IndiaChakraBlue),
+)
+
+@Composable
+private fun InterpreterHeader() {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HEADER_LANGUAGE_BADGES.forEach { badge ->
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .shadow(3.dp, RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(badge.color),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(badge.glyph, style = MaterialTheme.typography.titleLarge, color = Color.White)
+                }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        Text(
+            "Interpreter",
+            style = MaterialTheme.typography.titleLarge.copy(fontSize = 30.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            "Speak, and hear it translated",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
