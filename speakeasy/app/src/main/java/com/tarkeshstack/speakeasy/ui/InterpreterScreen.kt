@@ -50,11 +50,6 @@ import com.tarkeshstack.speakeasy.model.InterpretStatus
 import com.tarkeshstack.speakeasy.model.InterpretationResult
 import com.tarkeshstack.speakeasy.model.Language
 import com.tarkeshstack.speakeasy.ui.theme.AshokaChakraWatermark
-import com.tarkeshstack.speakeasy.ui.theme.IndiaChakraBlue
-import com.tarkeshstack.speakeasy.ui.theme.IndiaGreen
-import com.tarkeshstack.speakeasy.ui.theme.IndiaSaffron
-import com.tarkeshstack.speakeasy.ui.theme.LanguageMaroon
-import com.tarkeshstack.speakeasy.ui.theme.LanguageTeal
 import com.tarkeshstack.speakeasy.ui.theme.TricolorBackground
 
 @Composable
@@ -146,36 +141,13 @@ fun InterpreterScreen(
     }
 }
 
-private data class LanguageBadge(val glyph: String, val color: Color)
-
-private val HEADER_LANGUAGE_BADGES = listOf(
-    LanguageBadge("A", IndiaGreen),
-    LanguageBadge("अ", IndiaSaffron),
-    LanguageBadge("அ", LanguageMaroon),
-    LanguageBadge("Ñ", LanguageTeal),
-    LanguageBadge("É", IndiaChakraBlue),
-)
-
 @Composable
 private fun InterpreterHeader() {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HEADER_LANGUAGE_BADGES.forEach { badge ->
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .shadow(3.dp, RoundedCornerShape(16.dp))
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(badge.color),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(badge.glyph, style = MaterialTheme.typography.titleLarge, color = Color.White)
-                }
-            }
-        }
+        LanguageBadgeRow()
         Spacer(Modifier.height(18.dp))
         Text(
             "Interpreter",

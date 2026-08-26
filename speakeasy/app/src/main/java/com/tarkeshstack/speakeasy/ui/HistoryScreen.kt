@@ -50,6 +50,12 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .padding(24.dp),
         ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            LanguageBadgeRow()
+        }
+
+        Spacer(Modifier.height(18.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
