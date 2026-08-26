@@ -1,7 +1,7 @@
 {
-  "name": "measurely",
+  "name": "writing-practice",
   "version": "1.0.0",
-  "description": "Measurely — Measuring & Conversion Guide for All Which Can Be Measured",
+  "description": "Writing Practice — trace alphabets and numbers in different languages by hand",
   "private": true,
   "scripts": {
     "sync": "cap sync",
@@ -9,6 +9,7 @@
     "build:android": "cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor-community/text-to-speech": "^6.1.0",
     "@capacitor/android": "^7.4.3",
     "@capacitor/app": "^7.1.0",
     "@capacitor/core": "^7.4.3",

@@ -1,10 +1,10 @@
 {
-  "appId": "com.measurely.app",
-  "appName": "Measurely",
+  "appId": "com.writingpractice.app",
+  "appName": "Writing Practice",
   "webDir": "www",
-  "backgroundColor": "#F1E4D0",
+  "backgroundColor": "#F4F5FB",
   "android": {
-    "backgroundColor": "#F1E4D0"
+    "backgroundColor": "#F4F5FB"
   },
   "server": {
     "androidScheme": "https"

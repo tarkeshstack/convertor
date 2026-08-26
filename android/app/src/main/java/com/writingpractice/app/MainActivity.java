@@ -1,4 +1,4 @@
-package com.measurely.app;
+package com.writingpractice.app;
 
 import com.getcapacitor.BridgeActivity;
 
