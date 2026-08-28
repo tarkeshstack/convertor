@@ -347,6 +347,104 @@ NATIVE_BRIDGE_SCRIPT = """
 """
 
 
+def patch_speakeasy_share_save(fragment: str) -> str:
+    """Drop the "Save audio" button and make Share send the actual spoken
+    translation as a playable audio attachment (a File via navigator.share),
+    not just text — so apps like WhatsApp deliver it as a voice note instead
+    of a text snippet. Falls back to text-only sharing if file sharing isn't
+    supported or the TTS fetch fails."""
+
+    old_buttons = """        <button class="icon-btn" id="shareBtn" type="button" aria-label="Share" title="Share">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08a2.99 2.99 0 0 0-1.96.77l-7.13-4.15a3 3 0 0 0 0-1.4l7.05-4.11a3 3 0 1 0-.9-1.72l-7.05 4.11a3 3 0 1 0 0 4.84l7.13 4.15a3 3 0 1 0 2.86-2.49Z"/></svg>
+        </button>
+        <button class="icon-btn" id="saveBtn" type="button" aria-label="Save audio" title="Save audio">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7ZM5 18v2h14v-2H5Z"/></svg>
+        </button>"""
+    new_buttons = """        <button class="icon-btn" id="shareBtn" type="button" aria-label="Share" title="Share">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08a2.99 2.99 0 0 0-1.96.77l-7.13-4.15a3 3 0 0 0 0-1.4l7.05-4.11a3 3 0 1 0-.9-1.72l-7.05 4.11a3 3 0 1 0 0 4.84l7.13 4.15a3 3 0 1 0 2.86-2.49Z"/></svg>
+        </button>"""
+    if old_buttons not in fragment:
+        raise ValueError("speakeasy share/save buttons markup not found — upstream layout changed")
+    fragment = fragment.replace(old_buttons, new_buttons)
+
+    old_share_fn = """  function shareResult(text) {
+    if (navigator.share) {
+      navigator.share({ title: "SpeakEasy translation", text: text }).catch(function () {});
+    } else {
+      copyText(text);
+      flashAction("Sharing isn't supported here — copied instead.");
+    }
+  }
+
+  // Downloads the spoken translation as an mp3 via a free, keyless TTS endpoint
+  // (translate.google.com's public TTS route) — an <a download> click is a plain
+  // browser navigation, not a fetch(), so it isn't blocked by CORS the way reading
+  // the audio bytes back into JS would be. Capped at ~200 chars, that endpoint's
+  // practical limit per request.
+  function saveAudio(text, langCode) {
+    var trimmed = text.length > 200 ? text.slice(0, 200) : text;
+    var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
+      encodeURIComponent(langCode) + "&q=" + encodeURIComponent(trimmed);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "speakeasy-" + langCode + ".mp3";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    flashAction("Downloading…");
+  }"""
+    new_share_fn = """  // Shares the spoken translation as a playable audio attachment (fetched as
+  // an mp3 from the same free, keyless TTS endpoint the play button uses)
+  // via the Web Share API's file-sharing support, so apps like WhatsApp
+  // deliver it as a voice note rather than a text snippet. Falls back to
+  // text-only sharing if file sharing isn't supported here or the fetch
+  // fails. Capped at ~200 chars, that endpoint's practical limit per request.
+  function shareTextOnly(text) {
+    if (navigator.share) {
+      navigator.share({ title: "SpeakEasy translation", text: text }).catch(function () {});
+    } else {
+      copyText(text);
+      flashAction("Sharing isn't supported here — copied instead.");
+    }
+  }
+
+  function shareResult(text, langCode) {
+    if (!langCode || !navigator.share) { shareTextOnly(text); return; }
+    var trimmed = text.length > 200 ? text.slice(0, 200) : text;
+    var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
+      encodeURIComponent(langCode) + "&q=" + encodeURIComponent(trimmed);
+    fetch(url).then(function (res) {
+      if (!res.ok) throw new Error("tts fetch failed");
+      return res.blob();
+    }).then(function (blob) {
+      var file = new File([blob], "speakeasy-" + langCode + ".mp3", { type: "audio/mpeg" });
+      if (navigator.canShare && !navigator.canShare({ files: [file] })) throw new Error("file sharing unsupported");
+      return navigator.share({ title: "SpeakEasy translation", text: text, files: [file] });
+    }).catch(function () {
+      shareTextOnly(text);
+    });
+  }"""
+    if old_share_fn not in fragment:
+        raise ValueError("speakeasy shareResult/saveAudio functions not found — upstream logic changed")
+    fragment = fragment.replace(old_share_fn, new_share_fn)
+
+    old_listeners = """  document.getElementById("shareBtn").addEventListener("click", function () {
+    if (state.result) shareResult(state.result.translatedText);
+  });
+  document.getElementById("saveBtn").addEventListener("click", function () {
+    if (state.result) saveAudio(state.result.translatedText, state.result.targetCode);
+  });"""
+    new_listeners = """  document.getElementById("shareBtn").addEventListener("click", function () {
+    if (state.result) shareResult(state.result.translatedText, state.result.targetCode);
+  });"""
+    if old_listeners not in fragment:
+        raise ValueError("speakeasy shareBtn/saveBtn listeners not found — upstream logic changed")
+    fragment = fragment.replace(old_listeners, new_listeners)
+
+    return fragment
+
+
 def inject_after_head(fragment: str) -> str:
     idx = fragment.find("<head>")
     if idx != -1:
@@ -365,6 +463,8 @@ def patch_template(html: str, template_id: str) -> str:
     end = html.index("</template>", start)
     before, fragment, after = html[:start], html[start:end], html[end:]
     fragment = inject_after_head(fragment)
+    if template_id == "speakeasy-src":
+        fragment = patch_speakeasy_share_save(fragment)
     return before + fragment + after
 
 
