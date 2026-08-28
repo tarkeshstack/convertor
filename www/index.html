@@ -4726,6 +4726,85 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
 
 <template id="speakeasy-src"><html lang="en">
 <head>
+<script>
+/* Web Speech API shim for embedded tool iframes (SpeakEasy, Writing
+   Practice). Android's WebView implements neither window.speechSynthesis
+   nor window.SpeechRecognition, so instead of calling them directly this
+   forwards requests to the parent page over postMessage; the parent (see
+   the CAPACITOR NATIVE BRIDGE script at the end of the main document)
+   answers using the native TextToSpeech / SpeechRecognition plugins and
+   relays results back the same way. No-op structurally when not embedded
+   (window.parent === window) — falls through to native browser behavior. */
+(function(){
+  if(window.parent === window) return;
+  var reqCounter = 0;
+  var pending = {};
+
+  function Utterance(text){
+    this.text = text; this.lang = ''; this.rate = 1; this.pitch = 1; this.volume = 1;
+    this.voice = null; this.onend = null; this.onerror = null;
+  }
+  window.SpeechSynthesisUtterance = Utterance;
+  window.speechSynthesis = {
+    getVoices: function(){ return []; },
+    cancel: function(){ window.parent.postMessage({ type: 'wordly-speech:cancel' }, '*'); },
+    speak: function(u){
+      var id = 'tts' + (++reqCounter);
+      pending[id] = u;
+      window.parent.postMessage({
+        type: 'wordly-speech:speak', reqId: id,
+        text: u.text, lang: u.lang, rate: u.rate, pitch: u.pitch, volume: u.volume
+      }, '*');
+    },
+    onvoiceschanged: null
+  };
+
+  var activeRecognizer = null;
+  function NativeRecognition(){
+    this.lang = ''; this.interimResults = true; this.continuous = false; this.maxAlternatives = 1;
+    this.onresult = null; this.onerror = null; this.onend = null;
+    this._id = null;
+  }
+  NativeRecognition.prototype.start = function(){
+    var id = 'stt' + (++reqCounter);
+    this._id = id;
+    pending[id] = this;
+    activeRecognizer = this;
+    window.parent.postMessage({ type: 'wordly-speech:start', reqId: id, lang: this.lang }, '*');
+  };
+  NativeRecognition.prototype.stop = function(){
+    window.parent.postMessage({ type: 'wordly-speech:stop' }, '*');
+  };
+  window.SpeechRecognition = NativeRecognition;
+  window.webkitSpeechRecognition = NativeRecognition;
+
+  window.addEventListener('message', function(e){
+    var data = e.data;
+    if(!data || typeof data !== 'object' || typeof data.type !== 'string' || data.type.indexOf('wordly-speech:') !== 0) return;
+    var target = pending[data.reqId];
+    if(data.type === 'wordly-speech:tts-end'){
+      if(target && typeof target.onend === 'function') target.onend();
+      delete pending[data.reqId];
+    } else if(data.type === 'wordly-speech:tts-error'){
+      if(target && typeof target.onerror === 'function') target.onerror({ error: data.error });
+      delete pending[data.reqId];
+    } else if(data.type === 'wordly-speech:stt-result'){
+      if(target && typeof target.onresult === 'function'){
+        var evt = { resultIndex: 0, results: [[{ transcript: data.transcript }]] };
+        evt.results[0].isFinal = !!data.isFinal;
+        target.onresult(evt);
+      }
+    } else if(data.type === 'wordly-speech:stt-error'){
+      if(target && typeof target.onerror === 'function') target.onerror({ error: data.error });
+    } else if(data.type === 'wordly-speech:stt-end'){
+      if(target && typeof target.onend === 'function') target.onend();
+      delete pending[data.reqId];
+      if(activeRecognizer === target) activeRecognizer = null;
+    }
+  });
+})();
+</script>
+
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>SpeakEasy Interpreter</title>
@@ -5502,6 +5581,85 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
 <template id="writing-src"><!doctype html>
 <html lang="en">
 <head>
+<script>
+/* Web Speech API shim for embedded tool iframes (SpeakEasy, Writing
+   Practice). Android's WebView implements neither window.speechSynthesis
+   nor window.SpeechRecognition, so instead of calling them directly this
+   forwards requests to the parent page over postMessage; the parent (see
+   the CAPACITOR NATIVE BRIDGE script at the end of the main document)
+   answers using the native TextToSpeech / SpeechRecognition plugins and
+   relays results back the same way. No-op structurally when not embedded
+   (window.parent === window) — falls through to native browser behavior. */
+(function(){
+  if(window.parent === window) return;
+  var reqCounter = 0;
+  var pending = {};
+
+  function Utterance(text){
+    this.text = text; this.lang = ''; this.rate = 1; this.pitch = 1; this.volume = 1;
+    this.voice = null; this.onend = null; this.onerror = null;
+  }
+  window.SpeechSynthesisUtterance = Utterance;
+  window.speechSynthesis = {
+    getVoices: function(){ return []; },
+    cancel: function(){ window.parent.postMessage({ type: 'wordly-speech:cancel' }, '*'); },
+    speak: function(u){
+      var id = 'tts' + (++reqCounter);
+      pending[id] = u;
+      window.parent.postMessage({
+        type: 'wordly-speech:speak', reqId: id,
+        text: u.text, lang: u.lang, rate: u.rate, pitch: u.pitch, volume: u.volume
+      }, '*');
+    },
+    onvoiceschanged: null
+  };
+
+  var activeRecognizer = null;
+  function NativeRecognition(){
+    this.lang = ''; this.interimResults = true; this.continuous = false; this.maxAlternatives = 1;
+    this.onresult = null; this.onerror = null; this.onend = null;
+    this._id = null;
+  }
+  NativeRecognition.prototype.start = function(){
+    var id = 'stt' + (++reqCounter);
+    this._id = id;
+    pending[id] = this;
+    activeRecognizer = this;
+    window.parent.postMessage({ type: 'wordly-speech:start', reqId: id, lang: this.lang }, '*');
+  };
+  NativeRecognition.prototype.stop = function(){
+    window.parent.postMessage({ type: 'wordly-speech:stop' }, '*');
+  };
+  window.SpeechRecognition = NativeRecognition;
+  window.webkitSpeechRecognition = NativeRecognition;
+
+  window.addEventListener('message', function(e){
+    var data = e.data;
+    if(!data || typeof data !== 'object' || typeof data.type !== 'string' || data.type.indexOf('wordly-speech:') !== 0) return;
+    var target = pending[data.reqId];
+    if(data.type === 'wordly-speech:tts-end'){
+      if(target && typeof target.onend === 'function') target.onend();
+      delete pending[data.reqId];
+    } else if(data.type === 'wordly-speech:tts-error'){
+      if(target && typeof target.onerror === 'function') target.onerror({ error: data.error });
+      delete pending[data.reqId];
+    } else if(data.type === 'wordly-speech:stt-result'){
+      if(target && typeof target.onresult === 'function'){
+        var evt = { resultIndex: 0, results: [[{ transcript: data.transcript }]] };
+        evt.results[0].isFinal = !!data.isFinal;
+        target.onresult(evt);
+      }
+    } else if(data.type === 'wordly-speech:stt-error'){
+      if(target && typeof target.onerror === 'function') target.onerror({ error: data.error });
+    } else if(data.type === 'wordly-speech:stt-end'){
+      if(target && typeof target.onend === 'function') target.onend();
+      delete pending[data.reqId];
+      if(activeRecognizer === target) activeRecognizer = null;
+    }
+  });
+})();
+</script>
+
 <meta charset="UTF-8">
 <title>Writing Practice</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
@@ -6837,10 +6995,14 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
 
   Promise.all([
     loadPlugin('capacitor-plugins/app.js'),
-    loadPlugin('capacitor-plugins/status-bar.js')
+    loadPlugin('capacitor-plugins/status-bar.js'),
+    loadPlugin('capacitor-plugins/text-to-speech.js'),
+    loadPlugin('capacitor-plugins/speech-recognition.js')
   ]).then(function(){
     const CapApp = window.capacitorApp && window.capacitorApp.App;
     const CapStatusBar = window.capacitorStatusBar && window.capacitorStatusBar.StatusBar;
+    const CapTTS = window.capacitorTextToSpeech && window.capacitorTextToSpeech.TextToSpeech;
+    const CapSTT = window.capacitorSpeechRecognition && window.capacitorSpeechRecognition.SpeechRecognition;
 
     if(CapStatusBar){
       CapStatusBar.setBackgroundColor({ color: '#FDFCFA' }).catch(function(){});
@@ -6862,6 +7024,143 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
         }
       });
     }
+
+    // ---- Native Speech-Recognition helper, shared by the direct shim below
+    // and the message relay that answers the embedded tool iframes. ----
+    function NativeRecognition(){
+      this.lang = ''; this.interimResults = true; this.continuous = false; this.maxAlternatives = 1;
+      this.onresult = null; this.onerror = null; this.onend = null;
+      this._active = false;
+    }
+    NativeRecognition.prototype.start = function(){
+      const self = this;
+      if(!CapSTT){
+        if(typeof self.onerror === 'function') self.onerror({ error: 'not-allowed' });
+        if(typeof self.onend === 'function') self.onend();
+        return;
+      }
+      self._active = true;
+      CapSTT.requestPermissions().then(function(perm){
+        if(!self._active) return;
+        if(perm && perm.speechRecognition && perm.speechRecognition !== 'granted'){
+          self._active = false;
+          if(typeof self.onerror === 'function') self.onerror({ error: 'not-allowed' });
+          if(typeof self.onend === 'function') self.onend();
+          return;
+        }
+        const listenerPromise = CapSTT.addListener('partialResults', function(res){
+          if(!self._active) return;
+          const matches = (res && res.matches) || [];
+          if(!matches.length) return;
+          const evt = { resultIndex: 0, results: [[{ transcript: matches[0] }]] };
+          evt.results[0].isFinal = false;
+          if(typeof self.onresult === 'function') self.onresult(evt);
+        });
+        CapSTT.start({ language: self.lang || 'en-US', partialResults: true, popup: false, maxResults: 1 })
+          .then(function(result){
+            listenerPromise.then(function(h){ h.remove(); }).catch(function(){});
+            if(!self._active) return;
+            self._active = false;
+            const matches = (result && result.matches) || [];
+            if(matches.length){
+              const evt = { resultIndex: 0, results: [[{ transcript: matches[0] }]] };
+              evt.results[0].isFinal = true;
+              if(typeof self.onresult === 'function') self.onresult(evt);
+            }
+            if(typeof self.onend === 'function') self.onend();
+          })
+          .catch(function(err){
+            listenerPromise.then(function(h){ h.remove(); }).catch(function(){});
+            if(!self._active) return;
+            self._active = false;
+            const msg = (err && err.message) || '';
+            const code = /permission|denied/i.test(msg) ? 'not-allowed' : (/network/i.test(msg) ? 'network' : 'no-speech');
+            if(typeof self.onerror === 'function') self.onerror({ error: code });
+            if(typeof self.onend === 'function') self.onend();
+          });
+      }).catch(function(){
+        self._active = false;
+        if(typeof self.onerror === 'function') self.onerror({ error: 'not-allowed' });
+        if(typeof self.onend === 'function') self.onend();
+      });
+    };
+    NativeRecognition.prototype.stop = function(){
+      this._active = false;
+      if(CapSTT) CapSTT.stop().catch(function(){});
+    };
+
+    // ---- Direct shim for the main page's own speechSynthesis / mic usage ----
+    if(CapTTS){
+      function Utterance(text){
+        this.text = text; this.lang = ''; this.rate = 1; this.pitch = 1; this.volume = 1;
+        this.voice = null; this.onend = null; this.onerror = null;
+      }
+      window.SpeechSynthesisUtterance = Utterance;
+      window.speechSynthesis = {
+        getVoices: function(){ return []; },
+        cancel: function(){ CapTTS.stop().catch(function(){}); },
+        speak: function(u){
+          CapTTS.speak({
+            text: u.text, lang: u.lang || 'en-US', rate: u.rate || 1.0,
+            pitch: u.pitch || 1.0, volume: u.volume == null ? 1.0 : u.volume,
+            category: 'playback'
+          }).then(function(){
+            if(typeof u.onend === 'function') u.onend();
+          }).catch(function(err){
+            if(typeof u.onerror === 'function') u.onerror(err);
+          });
+        },
+        onvoiceschanged: null
+      };
+    }
+    window.SpeechRecognition = NativeRecognition;
+    window.webkitSpeechRecognition = NativeRecognition;
+
+    // ---- Message relay: answers the postMessage speech shim running inside
+    // the SpeakEasy / Writing Practice blob: iframes (see sync-wordly.py). ----
+    let activeRelayRecognition = null;
+    window.addEventListener('message', function(e){
+      const data = e.data;
+      if(!data || typeof data !== 'object' || typeof data.type !== 'string' || data.type.indexOf('wordly-speech:') !== 0) return;
+      const source = e.source;
+      const reqId = data.reqId;
+      if(data.type === 'wordly-speech:speak'){
+        if(!CapTTS){
+          try{ source.postMessage({ type: 'wordly-speech:tts-error', reqId, error: 'unsupported' }, '*'); }catch(err){}
+          return;
+        }
+        CapTTS.speak({
+          text: data.text, lang: data.lang || 'en-US', rate: data.rate || 1.0,
+          pitch: data.pitch || 1.0, volume: data.volume == null ? 1.0 : data.volume,
+          category: 'playback'
+        }).then(function(){
+          try{ source.postMessage({ type: 'wordly-speech:tts-end', reqId }, '*'); }catch(err){}
+        }).catch(function(err){
+          try{ source.postMessage({ type: 'wordly-speech:tts-error', reqId, error: (err && err.message) || 'tts-error' }, '*'); }catch(e2){}
+        });
+      } else if(data.type === 'wordly-speech:cancel'){
+        if(CapTTS) CapTTS.stop().catch(function(){});
+      } else if(data.type === 'wordly-speech:start'){
+        if(activeRelayRecognition) activeRelayRecognition.stop();
+        const rec = new NativeRecognition();
+        rec.lang = data.lang || 'en-US';
+        rec.onresult = function(evt){
+          const r = evt.results[0];
+          try{ source.postMessage({ type: 'wordly-speech:stt-result', reqId, isFinal: !!r.isFinal, transcript: r[0].transcript }, '*'); }catch(err){}
+        };
+        rec.onerror = function(evt){
+          try{ source.postMessage({ type: 'wordly-speech:stt-error', reqId, error: evt.error }, '*'); }catch(err){}
+        };
+        rec.onend = function(){
+          try{ source.postMessage({ type: 'wordly-speech:stt-end', reqId }, '*'); }catch(err){}
+          if(activeRelayRecognition === rec) activeRelayRecognition = null;
+        };
+        activeRelayRecognition = rec;
+        rec.start();
+      } else if(data.type === 'wordly-speech:stop'){
+        if(activeRelayRecognition){ activeRelayRecognition.stop(); activeRelayRecognition = null; }
+      }
+    });
   });
 })();
 </script>
