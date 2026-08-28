@@ -319,11 +319,30 @@ NATIVE_BRIDGE_SCRIPT = """
       const trimmed = ttsText.length > 200 ? ttsText.slice(0, 200) : ttsText;
       const url = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' +
         encodeURIComponent(lang) + '&q=' + encodeURIComponent(trimmed);
-      CapHttp.request({ url: url, method: 'GET', responseType: 'arraybuffer' }).then(function(res){
-        const base64 = res && res.data;
-        if(!base64 || typeof base64 !== 'string' || base64.length < 100) throw new Error('empty tts response');
+      CapHttp.request({
+        url: url,
+        method: 'GET',
+        responseType: 'arraybuffer',
+        // This is an unofficial endpoint that may treat a native HTTP
+        // client's default (non-browser) headers differently than the
+        // browser-context fetch() it was originally designed to answer —
+        // send headers that look like the real page it's meant for.
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+          'Referer': 'https://translate.google.com/',
+          'Accept': 'audio/mpeg,audio/*;q=0.9,*/*;q=0.8'
+        }
+      }).then(function(res){
+        if(!res || res.status !== 200) throw new Error('tts http ' + (res && res.status));
+        const base64 = res.data;
+        if(!base64 || typeof base64 !== 'string') throw new Error('empty tts response');
+        // Android's native encoder (Base64.DEFAULT) line-wraps every 76
+        // chars; strip that out so a stricter base64 decoder on the
+        // Filesystem write side can't choke on the embedded newlines.
+        const cleanBase64 = base64.replace(/\s+/g, '');
+        if(cleanBase64.length < 100) throw new Error('tts response too small');
         const path = 'speakeasy-share.mp3';
-        return CapFS.writeFile({ path: path, data: base64, directory: 'CACHE' }).then(function(){
+        return CapFS.writeFile({ path: path, data: cleanBase64, directory: 'CACHE' }).then(function(){
           return CapFS.getUri({ path: path, directory: 'CACHE' });
         });
       }).then(function(uriResult){
@@ -468,7 +487,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
   // (e.g. testing this tool standalone in a browser) falls back to the
   // original text-only share.
   function shareResult(originalText, translatedText, targetCode) {
-    var combined = originalText + "\\n" + translatedText;
+    var combined = translatedText + "\\n" + originalText;
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "wordly-speech:share", text: combined, ttsText: translatedText, lang: targetCode }, "*");
       return;
