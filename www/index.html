@@ -5420,6 +5420,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
       };
       setStatus("result");
       speak(translatedText, byCode[targetCode].bcp);
+      prefetchShareAudio(translatedText, targetCode);
     }).catch(function (err) {
       state.errorMessage = err.message || "Something went wrong";
       setStatus("error");
@@ -5522,12 +5523,32 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
     }
   }
 
-  // Shares the spoken translation as a playable audio attachment (fetched as
-  // an mp3 from the same free, keyless TTS endpoint the play button uses)
-  // via the Web Share API's file-sharing support, so apps like WhatsApp
-  // deliver it as a voice note rather than a text snippet. Falls back to
-  // text-only sharing if file sharing isn't supported here or the fetch
-  // fails. Capped at ~200 chars, that endpoint's practical limit per request.
+  // Fetched proactively as soon as a translation result comes in (see
+  // handleUtterance) rather than inside the share button's click handler,
+  // so navigator.share's file attachment still has a live user-activation
+  // window to work with — see the note above patch_speakeasy_share_save in
+  // sync-wordly.py for why that matters. audioReqId invalidates any fetch
+  // that a newer result has superseded.
+  var audioReqId = 0;
+  var pendingAudioFile = null;
+  var pendingAudioForId = -1;
+
+  function prefetchShareAudio(text, langCode) {
+    var id = ++audioReqId;
+    pendingAudioFile = null;
+    var trimmed = text.length > 200 ? text.slice(0, 200) : text;
+    var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
+      encodeURIComponent(langCode) + "&q=" + encodeURIComponent(trimmed);
+    fetch(url).then(function (res) {
+      if (!res.ok) throw new Error("tts fetch failed");
+      return res.blob();
+    }).then(function (blob) {
+      if (id !== audioReqId) return; // a newer result already superseded this
+      pendingAudioFile = new File([blob], "speakeasy-" + langCode + ".mp3", { type: "audio/mpeg" });
+      pendingAudioForId = id;
+    }).catch(function () { /* share falls back to text if this never lands */ });
+  }
+
   function shareTextOnly(text) {
     if (navigator.share) {
       navigator.share({ title: "SpeakEasy translation", text: text }).catch(function () {});
@@ -5537,28 +5558,29 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
     }
   }
 
-  function shareResult(text, langCode) {
-    if (!langCode || !navigator.share) { shareTextOnly(text); return; }
-    var trimmed = text.length > 200 ? text.slice(0, 200) : text;
-    var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
-      encodeURIComponent(langCode) + "&q=" + encodeURIComponent(trimmed);
-    fetch(url).then(function (res) {
-      if (!res.ok) throw new Error("tts fetch failed");
-      return res.blob();
-    }).then(function (blob) {
-      var file = new File([blob], "speakeasy-" + langCode + ".mp3", { type: "audio/mpeg" });
-      if (navigator.canShare && !navigator.canShare({ files: [file] })) throw new Error("file sharing unsupported");
-      return navigator.share({ title: "SpeakEasy translation", text: text, files: [file] });
-    }).catch(function () {
-      shareTextOnly(text);
-    });
+  // Shares the original + translated text together with the spoken
+  // translation's audio (whatever prefetchShareAudio already fetched) as a
+  // playable attachment via the Web Share API's file support, so apps like
+  // WhatsApp deliver it as a voice note rather than a text snippet. Falls
+  // back to text-only sharing if the audio isn't ready, file sharing isn't
+  // supported here, or the share sheet itself rejects it.
+  function shareResult(originalText, translatedText) {
+    var combined = "You said: " + originalText + "\nTranslation: " + translatedText;
+    var file = (pendingAudioForId === audioReqId) ? pendingAudioFile : null;
+    if (file && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      navigator.share({ title: "SpeakEasy translation", text: combined, files: [file] }).catch(function () {
+        shareTextOnly(combined);
+      });
+    } else {
+      shareTextOnly(combined);
+    }
   }
 
   document.getElementById("copyBtn").addEventListener("click", function () {
     if (state.result) copyText(state.result.translatedText);
   });
   document.getElementById("shareBtn").addEventListener("click", function () {
-    if (state.result) shareResult(state.result.translatedText, state.result.targetCode);
+    if (state.result) shareResult(state.result.originalText, state.result.translatedText);
   });
 
   // ---- History view ----

@@ -348,11 +348,68 @@ NATIVE_BRIDGE_SCRIPT = """
 
 
 def patch_speakeasy_share_save(fragment: str) -> str:
-    """Drop the "Save audio" button and make Share send the actual spoken
-    translation as a playable audio attachment (a File via navigator.share),
-    not just text — so apps like WhatsApp deliver it as a voice note instead
-    of a text snippet. Falls back to text-only sharing if file sharing isn't
-    supported or the TTS fetch fails."""
+    """Drop the "Save audio" button and make Share send the original + translated
+    text together with the spoken translation as a playable audio attachment
+    (a File via navigator.share), not just text — so apps like WhatsApp
+    deliver it as a voice note instead of a text snippet.
+
+    The audio has to be *fetched before* the share button is clicked, not
+    inside the click handler: navigator.share({files}) only works within a
+    user gesture's "activation" window, and an on-click fetch() to Google's
+    TTS endpoint routinely outlasts it, silently losing the file and falling
+    back to text every time. So the mp3 is prefetched as soon as a
+    translation result comes in (there's normally several seconds of
+    dead time before anyone reaches for the share button), cached, and the
+    share handler just attaches whatever's already sitting there."""
+
+    old_handle_utterance = """function handleUtterance(text) {
+    if (!text || !text.trim()) { setStatus("idle"); return; }
+    var autoDetected = !state.sourceCode;
+    var sourceCode = state.sourceCode || detectLanguage(text);
+    var targetCode = state.targetCode;
+
+    setStatus("translating");
+    translate(text, sourceCode, targetCode).then(function (translatedText) {
+      state.result = {
+        originalText: text,
+        sourceCode: sourceCode,
+        autoDetected: autoDetected,
+        translatedText: translatedText,
+        targetCode: targetCode
+      };
+      setStatus("result");
+      speak(translatedText, byCode[targetCode].bcp);
+    }).catch(function (err) {
+      state.errorMessage = err.message || "Something went wrong";
+      setStatus("error");
+    });
+  }"""
+    new_handle_utterance = """function handleUtterance(text) {
+    if (!text || !text.trim()) { setStatus("idle"); return; }
+    var autoDetected = !state.sourceCode;
+    var sourceCode = state.sourceCode || detectLanguage(text);
+    var targetCode = state.targetCode;
+
+    setStatus("translating");
+    translate(text, sourceCode, targetCode).then(function (translatedText) {
+      state.result = {
+        originalText: text,
+        sourceCode: sourceCode,
+        autoDetected: autoDetected,
+        translatedText: translatedText,
+        targetCode: targetCode
+      };
+      setStatus("result");
+      speak(translatedText, byCode[targetCode].bcp);
+      prefetchShareAudio(translatedText, targetCode);
+    }).catch(function (err) {
+      state.errorMessage = err.message || "Something went wrong";
+      setStatus("error");
+    });
+  }"""
+    if old_handle_utterance not in fragment:
+        raise ValueError("speakeasy handleUtterance() not found — upstream logic changed")
+    fragment = fragment.replace(old_handle_utterance, new_handle_utterance)
 
     old_buttons = """        <button class="icon-btn" id="shareBtn" type="button" aria-label="Share" title="Share">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08a2.99 2.99 0 0 0-1.96.77l-7.13-4.15a3 3 0 0 0 0-1.4l7.05-4.11a3 3 0 1 0-.9-1.72l-7.05 4.11a3 3 0 1 0 0 4.84l7.13 4.15a3 3 0 1 0 2.86-2.49Z"/></svg>
@@ -394,12 +451,32 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     a.remove();
     flashAction("Downloading…");
   }"""
-    new_share_fn = """  // Shares the spoken translation as a playable audio attachment (fetched as
-  // an mp3 from the same free, keyless TTS endpoint the play button uses)
-  // via the Web Share API's file-sharing support, so apps like WhatsApp
-  // deliver it as a voice note rather than a text snippet. Falls back to
-  // text-only sharing if file sharing isn't supported here or the fetch
-  // fails. Capped at ~200 chars, that endpoint's practical limit per request.
+    new_share_fn = """  // Fetched proactively as soon as a translation result comes in (see
+  // handleUtterance) rather than inside the share button's click handler,
+  // so navigator.share's file attachment still has a live user-activation
+  // window to work with — see the note above patch_speakeasy_share_save in
+  // sync-wordly.py for why that matters. audioReqId invalidates any fetch
+  // that a newer result has superseded.
+  var audioReqId = 0;
+  var pendingAudioFile = null;
+  var pendingAudioForId = -1;
+
+  function prefetchShareAudio(text, langCode) {
+    var id = ++audioReqId;
+    pendingAudioFile = null;
+    var trimmed = text.length > 200 ? text.slice(0, 200) : text;
+    var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
+      encodeURIComponent(langCode) + "&q=" + encodeURIComponent(trimmed);
+    fetch(url).then(function (res) {
+      if (!res.ok) throw new Error("tts fetch failed");
+      return res.blob();
+    }).then(function (blob) {
+      if (id !== audioReqId) return; // a newer result already superseded this
+      pendingAudioFile = new File([blob], "speakeasy-" + langCode + ".mp3", { type: "audio/mpeg" });
+      pendingAudioForId = id;
+    }).catch(function () { /* share falls back to text if this never lands */ });
+  }
+
   function shareTextOnly(text) {
     if (navigator.share) {
       navigator.share({ title: "SpeakEasy translation", text: text }).catch(function () {});
@@ -409,21 +486,22 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     }
   }
 
-  function shareResult(text, langCode) {
-    if (!langCode || !navigator.share) { shareTextOnly(text); return; }
-    var trimmed = text.length > 200 ? text.slice(0, 200) : text;
-    var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
-      encodeURIComponent(langCode) + "&q=" + encodeURIComponent(trimmed);
-    fetch(url).then(function (res) {
-      if (!res.ok) throw new Error("tts fetch failed");
-      return res.blob();
-    }).then(function (blob) {
-      var file = new File([blob], "speakeasy-" + langCode + ".mp3", { type: "audio/mpeg" });
-      if (navigator.canShare && !navigator.canShare({ files: [file] })) throw new Error("file sharing unsupported");
-      return navigator.share({ title: "SpeakEasy translation", text: text, files: [file] });
-    }).catch(function () {
-      shareTextOnly(text);
-    });
+  // Shares the original + translated text together with the spoken
+  // translation's audio (whatever prefetchShareAudio already fetched) as a
+  // playable attachment via the Web Share API's file support, so apps like
+  // WhatsApp deliver it as a voice note rather than a text snippet. Falls
+  // back to text-only sharing if the audio isn't ready, file sharing isn't
+  // supported here, or the share sheet itself rejects it.
+  function shareResult(originalText, translatedText) {
+    var combined = "You said: " + originalText + "\\nTranslation: " + translatedText;
+    var file = (pendingAudioForId === audioReqId) ? pendingAudioFile : null;
+    if (file && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      navigator.share({ title: "SpeakEasy translation", text: combined, files: [file] }).catch(function () {
+        shareTextOnly(combined);
+      });
+    } else {
+      shareTextOnly(combined);
+    }
   }"""
     if old_share_fn not in fragment:
         raise ValueError("speakeasy shareResult/saveAudio functions not found — upstream logic changed")
@@ -436,7 +514,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     if (state.result) saveAudio(state.result.translatedText, state.result.targetCode);
   });"""
     new_listeners = """  document.getElementById("shareBtn").addEventListener("click", function () {
-    if (state.result) shareResult(state.result.translatedText, state.result.targetCode);
+    if (state.result) shareResult(state.result.originalText, state.result.translatedText);
   });"""
     if old_listeners not in fragment:
         raise ValueError("speakeasy shareBtn/saveBtn listeners not found — upstream logic changed")
