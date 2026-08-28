@@ -7,36 +7,36 @@ fs.mkdirSync(outDir, { recursive: true });
 
 const iconSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect width="1024" height="1024" rx="225" fill="#C8791F"/>
-  <text x="512" y="700" font-size="620" text-anchor="middle" fill="#FBF0DF" font-family="Arial, sans-serif" font-weight="bold">&#2309;</text>
+  <rect width="1024" height="1024" rx="225" fill="#2563EB"/>
+  <text x="512" y="660" font-size="460" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="bold">W</text>
 </svg>
 `;
 
 const iconSvgFg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <text x="512" y="680" font-size="520" text-anchor="middle" fill="#FBF0DF" font-family="Arial, sans-serif" font-weight="bold">&#2309;</text>
+  <text x="512" y="640" font-size="400" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="bold">W</text>
 </svg>
 `;
 
 const iconSvgBg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect width="1024" height="1024" fill="#C8791F"/>
+  <rect width="1024" height="1024" fill="#2563EB"/>
 </svg>
 `;
 
 const splashSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
   <rect width="2732" height="2732" fill="#FDFCFA"/>
-  <rect x="1116" y="1116" width="500" height="500" rx="110" fill="#C8791F"/>
-  <text x="1366" y="1500" font-size="300" text-anchor="middle" fill="#FBF0DF" font-family="Arial, sans-serif" font-weight="bold">&#2309;</text>
+  <rect x="1116" y="1116" width="500" height="500" rx="110" fill="#2563EB"/>
+  <text x="1366" y="1465" font-size="230" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="bold">W</text>
 </svg>
 `;
 
 const splashSvgDark = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
-  <rect width="2732" height="2732" fill="#21242E"/>
-  <rect x="1116" y="1116" width="500" height="500" rx="110" fill="#C8791F"/>
-  <text x="1366" y="1500" font-size="300" text-anchor="middle" fill="#FBF0DF" font-family="Arial, sans-serif" font-weight="bold">&#2309;</text>
+  <rect width="2732" height="2732" fill="#12151C"/>
+  <rect x="1116" y="1116" width="500" height="500" rx="110" fill="#2563EB"/>
+  <text x="1366" y="1465" font-size="230" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="bold">W</text>
 </svg>
 `;
 

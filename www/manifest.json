@@ -1,0 +1,25 @@
+{
+  "name": "Wordly — English to Indian Languages",
+  "short_name": "Wordly",
+  "description": "Type in English, get it instantly in Hindi, Tamil, Kannada, Malayalam, Telugu, Bengali, Gujarati, Marathi, Assamese & Odia.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FDFCFA",
+  "theme_color": "#2563EB",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
