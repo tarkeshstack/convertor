@@ -138,6 +138,9 @@ NATIVE_BRIDGE_SCRIPT = """
     const CapStatusBar = window.Capacitor.Plugins.StatusBar;
     const CapTTS = window.Capacitor.Plugins.TextToSpeech;
     const CapSTT = window.Capacitor.Plugins.SpeechRecognition;
+    const CapHttp = window.Capacitor.Plugins.CapacitorHttp;
+    const CapFS = window.Capacitor.Plugins.Filesystem;
+    const CapShare = window.Capacitor.Plugins.Share;
 
     if(CapStatusBar){
       CapStatusBar.setBackgroundColor({ color: '#FDFCFA' }).catch(function(){});
@@ -296,6 +299,45 @@ NATIVE_BRIDGE_SCRIPT = """
     window.SpeechRecognition = NativeRecognition;
     window.webkitSpeechRecognition = NativeRecognition;
 
+    // ---- Native audio sharing for SpeakEasy (see the 'wordly-speech:share'
+    // case below). WebView's own Web Share API proved unreliable here for
+    // file attachments (both an on-click fetch and an eagerly-prefetched one
+    // silently fell back to text-only — see patch_speakeasy_share_save in
+    // sync-wordly.py for the full history), so this goes through genuine
+    // native plugins instead: CapacitorHttp fetches the mp3 (native
+    // networking, not subject to the TTS endpoint's missing CORS headers),
+    // Filesystem saves it to the cache dir, and Share hands that file to
+    // Android's real share sheet — a proven, widely-used path with none of
+    // the WebView-specific quirks the other two attempts ran into.
+    function shareSpeakEasyAudio(shareText, ttsText, lang){
+      function textOnlyFallback(){
+        if(CapShare){
+          CapShare.share({ title: 'SpeakEasy translation', text: shareText }).catch(function(){});
+        }
+      }
+      if(!CapHttp || !CapFS || !CapShare){ textOnlyFallback(); return; }
+      const trimmed = ttsText.length > 200 ? ttsText.slice(0, 200) : ttsText;
+      const url = 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' +
+        encodeURIComponent(lang) + '&q=' + encodeURIComponent(trimmed);
+      CapHttp.request({ url: url, method: 'GET', responseType: 'arraybuffer' }).then(function(res){
+        const base64 = res && res.data;
+        if(!base64 || typeof base64 !== 'string' || base64.length < 100) throw new Error('empty tts response');
+        const path = 'speakeasy-share.mp3';
+        return CapFS.writeFile({ path: path, data: base64, directory: 'CACHE' }).then(function(){
+          return CapFS.getUri({ path: path, directory: 'CACHE' });
+        });
+      }).then(function(uriResult){
+        return CapShare.share({
+          title: 'SpeakEasy translation',
+          text: shareText,
+          files: [uriResult.uri],
+          dialogTitle: 'Share translation'
+        });
+      }).catch(function(){
+        textOnlyFallback();
+      });
+    }
+
     // ---- Message relay: answers the postMessage speech shim running inside
     // the SpeakEasy / Writing Practice blob: iframes (see sync-wordly.py). ----
     let activeRelayRecognition = null;
@@ -339,6 +381,8 @@ NATIVE_BRIDGE_SCRIPT = """
         rec.start();
       } else if(data.type === 'wordly-speech:stop'){
         if(activeRelayRecognition){ activeRelayRecognition.stop(); activeRelayRecognition = null; }
+      } else if(data.type === 'wordly-speech:share'){
+        shareSpeakEasyAudio(data.text, data.ttsText, data.lang || 'en-US');
       }
     });
   })();
@@ -349,67 +393,23 @@ NATIVE_BRIDGE_SCRIPT = """
 
 def patch_speakeasy_share_save(fragment: str) -> str:
     """Drop the "Save audio" button and make Share send the original + translated
-    text together with the spoken translation as a playable audio attachment
-    (a File via navigator.share), not just text — so apps like WhatsApp
-    deliver it as a voice note instead of a text snippet.
+    text together with the spoken translation as a playable audio attachment,
+    so apps like WhatsApp deliver it as a voice note instead of a text snippet.
 
-    The audio has to be *fetched before* the share button is clicked, not
-    inside the click handler: navigator.share({files}) only works within a
-    user gesture's "activation" window, and an on-click fetch() to Google's
-    TTS endpoint routinely outlasts it, silently losing the file and falling
-    back to text every time. So the mp3 is prefetched as soon as a
-    translation result comes in (there's normally several seconds of
-    dead time before anyone reaches for the share button), cached, and the
-    share handler just attaches whatever's already sitting there."""
+    Two prior approaches through the WebView's own Web Share API both failed
+    in practice: fetching the TTS mp3 inside the click handler lost
+    navigator.share({files})'s required user-activation window, and even
+    fetching it eagerly beforehand ran into the TTS endpoint blocking a plain
+    fetch() via CORS (no-cors mode got real bytes but the file share itself
+    still silently fell back to text — WebView's Web Share Level 2 file
+    support is evidently not reliable here regardless).
 
-    old_handle_utterance = """function handleUtterance(text) {
-    if (!text || !text.trim()) { setStatus("idle"); return; }
-    var autoDetected = !state.sourceCode;
-    var sourceCode = state.sourceCode || detectLanguage(text);
-    var targetCode = state.targetCode;
-
-    setStatus("translating");
-    translate(text, sourceCode, targetCode).then(function (translatedText) {
-      state.result = {
-        originalText: text,
-        sourceCode: sourceCode,
-        autoDetected: autoDetected,
-        translatedText: translatedText,
-        targetCode: targetCode
-      };
-      setStatus("result");
-      speak(translatedText, byCode[targetCode].bcp);
-    }).catch(function (err) {
-      state.errorMessage = err.message || "Something went wrong";
-      setStatus("error");
-    });
-  }"""
-    new_handle_utterance = """function handleUtterance(text) {
-    if (!text || !text.trim()) { setStatus("idle"); return; }
-    var autoDetected = !state.sourceCode;
-    var sourceCode = state.sourceCode || detectLanguage(text);
-    var targetCode = state.targetCode;
-
-    setStatus("translating");
-    translate(text, sourceCode, targetCode).then(function (translatedText) {
-      state.result = {
-        originalText: text,
-        sourceCode: sourceCode,
-        autoDetected: autoDetected,
-        translatedText: translatedText,
-        targetCode: targetCode
-      };
-      setStatus("result");
-      speak(translatedText, byCode[targetCode].bcp);
-      prefetchShareAudio(translatedText, targetCode);
-    }).catch(function (err) {
-      state.errorMessage = err.message || "Something went wrong";
-      setStatus("error");
-    });
-  }"""
-    if old_handle_utterance not in fragment:
-        raise ValueError("speakeasy handleUtterance() not found — upstream logic changed")
-    fragment = fragment.replace(old_handle_utterance, new_handle_utterance)
+    So this routes the whole thing to the parent page via postMessage (see
+    NATIVE_BRIDGE_SCRIPT's 'wordly-speech:share' handler) to use genuine
+    native Android plugins instead of WebView Web APIs: CapacitorHttp to
+    fetch the mp3 (native networking isn't subject to browser CORS at all),
+    Filesystem to save it, and Share to hand it to Android's real share
+    sheet — none of which have activation-window or CORS concerns."""
 
     old_buttons = """        <button class="icon-btn" id="shareBtn" type="button" aria-label="Share" title="Share">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08a2.99 2.99 0 0 0-1.96.77l-7.13-4.15a3 3 0 0 0 0-1.4l7.05-4.11a3 3 0 1 0-.9-1.72l-7.05 4.11a3 3 0 1 0 0 4.84l7.13 4.15a3 3 0 1 0 2.86-2.49Z"/></svg>
@@ -451,40 +451,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     a.remove();
     flashAction("Downloading…");
   }"""
-    new_share_fn = """  // Fetched proactively as soon as a translation result comes in (see
-  // handleUtterance) rather than inside the share button's click handler,
-  // so navigator.share's file attachment still has a live user-activation
-  // window to work with — see the note above patch_speakeasy_share_save in
-  // sync-wordly.py for why that matters. audioReqId invalidates any fetch
-  // that a newer result has superseded.
-  var audioReqId = 0;
-  var pendingAudioFile = null;
-  var pendingAudioForId = -1;
-
-  function prefetchShareAudio(text, langCode) {
-    var id = ++audioReqId;
-    pendingAudioFile = null;
-    var trimmed = text.length > 200 ? text.slice(0, 200) : text;
-    var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
-      encodeURIComponent(langCode) + "&q=" + encodeURIComponent(trimmed);
-    // This endpoint doesn't send CORS headers — a normal fetch() gets
-    // rejected outright (that's why the old save button used a plain <a
-    // download> navigation instead of reading the bytes into JS). mode:
-    // "no-cors" still performs the request and hands back a real Blob with
-    // the actual audio bytes via .blob(), it just can't expose status/headers
-    // (response.ok is always false for it, so that can't be used to check
-    // success — an empty/undersized blob is the signal something went wrong).
-    fetch(url, { mode: "no-cors" }).then(function (res) {
-      return res.blob();
-    }).then(function (blob) {
-      if (id !== audioReqId) return; // a newer result already superseded this
-      if (!blob || blob.size < 100) throw new Error("empty audio blob");
-      pendingAudioFile = new File([blob], "speakeasy-" + langCode + ".mp3", { type: "audio/mpeg" });
-      pendingAudioForId = id;
-    }).catch(function () { /* share falls back to text if this never lands */ });
-  }
-
-  function shareTextOnly(text) {
+    new_share_fn = """  function shareTextOnly(text) {
     if (navigator.share) {
       navigator.share({ title: "SpeakEasy translation", text: text }).catch(function () {});
     } else {
@@ -494,21 +461,19 @@ def patch_speakeasy_share_save(fragment: str) -> str:
   }
 
   // Shares the original + translated text together with the spoken
-  // translation's audio (whatever prefetchShareAudio already fetched) as a
-  // playable attachment via the Web Share API's file support, so apps like
-  // WhatsApp deliver it as a voice note rather than a text snippet. Falls
-  // back to text-only sharing if the audio isn't ready, file sharing isn't
-  // supported here, or the share sheet itself rejects it.
-  function shareResult(originalText, translatedText) {
+  // translation's audio. When embedded in the native app, hands the whole
+  // thing to the parent page over postMessage — it has real native plugins
+  // (CapacitorHttp/Filesystem/Share) that can fetch and attach the audio
+  // reliably, unlike this WebView's own Web Share API. Outside the app
+  // (e.g. testing this tool standalone in a browser) falls back to the
+  // original text-only share.
+  function shareResult(originalText, translatedText, targetCode) {
     var combined = originalText + "\\n" + translatedText;
-    var file = (pendingAudioForId === audioReqId) ? pendingAudioFile : null;
-    if (file && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-      navigator.share({ title: "SpeakEasy translation", text: combined, files: [file] }).catch(function () {
-        shareTextOnly(combined);
-      });
-    } else {
-      shareTextOnly(combined);
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "wordly-speech:share", text: combined, ttsText: translatedText, lang: targetCode }, "*");
+      return;
     }
+    shareTextOnly(combined);
   }"""
     if old_share_fn not in fragment:
         raise ValueError("speakeasy shareResult/saveAudio functions not found — upstream logic changed")
@@ -521,7 +486,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     if (state.result) saveAudio(state.result.translatedText, state.result.targetCode);
   });"""
     new_listeners = """  document.getElementById("shareBtn").addEventListener("click", function () {
-    if (state.result) shareResult(state.result.originalText, state.result.translatedText);
+    if (state.result) shareResult(state.result.originalText, state.result.translatedText, state.result.targetCode);
   });"""
     if old_listeners not in fragment:
         raise ValueError("speakeasy shareBtn/saveBtn listeners not found — upstream logic changed")
