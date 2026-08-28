@@ -310,6 +310,14 @@ NATIVE_BRIDGE_SCRIPT = """
     // Android's real share sheet — a proven, widely-used path with none of
     // the WebView-specific quirks the other two attempts ran into.
     function shareSpeakEasyAudio(shareText, ttsText, lang){
+      // Most share targets (WhatsApp included) don't show a caption
+      // alongside a shared audio/voice attachment — Intent.EXTRA_TEXT
+      // rides along in the intent (confirmed in @capacitor/share's own
+      // Android source), but the receiving app's own UI has nowhere to
+      // put it for audio specifically. Copy it to the clipboard as a
+      // fallback the user can paste in as a follow-up message.
+      try{ navigator.clipboard && navigator.clipboard.writeText(shareText); }catch(err){}
+
       function textOnlyFallback(){
         if(CapShare){
           CapShare.share({ title: 'SpeakEasy translation', text: shareText }).catch(function(){});
@@ -490,6 +498,10 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     var combined = translatedText + "\\n" + originalText;
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "wordly-speech:share", text: combined, ttsText: translatedText, lang: targetCode }, "*");
+      // Most share targets (WhatsApp included) don't show a caption next to
+      // a shared audio attachment, so the parent also copies this text to
+      // the clipboard as a fallback — let the user know it's there to paste.
+      flashAction("Sharing audio — text copied too, paste it if needed");
       return;
     }
     shareTextOnly(combined);
