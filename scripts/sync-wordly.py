@@ -467,11 +467,18 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     var trimmed = text.length > 200 ? text.slice(0, 200) : text;
     var url = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=" +
       encodeURIComponent(langCode) + "&q=" + encodeURIComponent(trimmed);
-    fetch(url).then(function (res) {
-      if (!res.ok) throw new Error("tts fetch failed");
+    // This endpoint doesn't send CORS headers — a normal fetch() gets
+    // rejected outright (that's why the old save button used a plain <a
+    // download> navigation instead of reading the bytes into JS). mode:
+    // "no-cors" still performs the request and hands back a real Blob with
+    // the actual audio bytes via .blob(), it just can't expose status/headers
+    // (response.ok is always false for it, so that can't be used to check
+    // success — an empty/undersized blob is the signal something went wrong).
+    fetch(url, { mode: "no-cors" }).then(function (res) {
       return res.blob();
     }).then(function (blob) {
       if (id !== audioReqId) return; // a newer result already superseded this
+      if (!blob || blob.size < 100) throw new Error("empty audio blob");
       pendingAudioFile = new File([blob], "speakeasy-" + langCode + ".mp3", { type: "audio/mpeg" });
       pendingAudioForId = id;
     }).catch(function () { /* share falls back to text if this never lands */ });
@@ -493,7 +500,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
   // back to text-only sharing if the audio isn't ready, file sharing isn't
   // supported here, or the share sheet itself rejects it.
   function shareResult(originalText, translatedText) {
-    var combined = "You said: " + originalText + "\\nTranslation: " + translatedText;
+    var combined = originalText + "\\n" + translatedText;
     var file = (pendingAudioForId === audioReqId) ? pendingAudioFile : null;
     if (file && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       navigator.share({ title: "SpeakEasy translation", text: combined, files: [file] }).catch(function () {
