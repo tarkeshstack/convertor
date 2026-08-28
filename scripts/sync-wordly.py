@@ -162,6 +162,19 @@ NATIVE_BRIDGE_SCRIPT = """
 
     // ---- Native Speech-Recognition helper, shared by the direct shim below
     // and the message relay that answers the embedded tool iframes. ----
+    //
+    // The native plugin's start({partialResults:true}) call resolves the
+    // instant listening begins — NOT when recognition finishes — and every
+    // result (interim and final alike) streams through the 'partialResults'
+    // event with no flag telling them apart. The actual end of an utterance
+    // is signalled separately via the 'listeningState' event (status
+    // 'stopped', fired from onEndOfSpeech), slightly BEFORE the recognizer's
+    // final onResults callback delivers its best transcript as one last
+    // 'partialResults' event — so treat the most recent transcript received
+    // as final once 'stopped' fires, after a brief grace delay for that
+    // trailing event. onError has no event path at all when partialResults
+    // is true (the plugin call it would normally reject is already
+    // resolved), so a timeout is the only backstop against that.
     function NativeRecognition(){
       this.lang = ''; this.interimResults = true; this.continuous = false; this.maxAlternatives = 1;
       this.onresult = null; this.onerror = null; this.onend = null;
@@ -183,35 +196,62 @@ NATIVE_BRIDGE_SCRIPT = """
           if(typeof self.onend === 'function') self.onend();
           return;
         }
-        const listenerPromise = CapSTT.addListener('partialResults', function(res){
-          if(!self._active) return;
+
+        let finished = false;
+        let gotResult = false;
+        let lastTranscript = '';
+        let partialHandle = null;
+        let stateHandle = null;
+        let timeoutId = null;
+
+        function cleanup(){
+          if(partialHandle) partialHandle.then(function(h){ h.remove(); }).catch(function(){});
+          if(stateHandle) stateHandle.then(function(h){ h.remove(); }).catch(function(){});
+          if(timeoutId) clearTimeout(timeoutId);
+        }
+        function finish(errorCode){
+          if(finished || !self._active) return;
+          finished = true;
+          self._active = false;
+          cleanup();
+          if(errorCode && typeof self.onerror === 'function') self.onerror({ error: errorCode });
+          if(typeof self.onend === 'function') self.onend();
+        }
+
+        partialHandle = CapSTT.addListener('partialResults', function(res){
+          if(finished || !self._active) return;
           const matches = (res && res.matches) || [];
           if(!matches.length) return;
+          gotResult = true;
+          lastTranscript = matches[0];
           const evt = { resultIndex: 0, results: [[{ transcript: matches[0] }]] };
           evt.results[0].isFinal = false;
           if(typeof self.onresult === 'function') self.onresult(evt);
         });
-        CapSTT.start({ language: self.lang || 'en-US', partialResults: true, popup: false, maxResults: 1 })
-          .then(function(result){
-            listenerPromise.then(function(h){ h.remove(); }).catch(function(){});
-            if(!self._active) return;
-            self._active = false;
-            const matches = (result && result.matches) || [];
-            if(matches.length){
-              const evt = { resultIndex: 0, results: [[{ transcript: matches[0] }]] };
+        stateHandle = CapSTT.addListener('listeningState', function(res){
+          if(finished || !self._active) return;
+          if(!res || res.status !== 'stopped') return;
+          // Give the trailing onResults-driven 'partialResults' event a
+          // moment to land before wrapping up with whatever we last heard.
+          setTimeout(function(){
+            if(finished || !self._active) return;
+            if(gotResult){
+              const evt = { resultIndex: 0, results: [[{ transcript: lastTranscript }]] };
               evt.results[0].isFinal = true;
               if(typeof self.onresult === 'function') self.onresult(evt);
+              finish();
+            } else {
+              finish('no-speech');
             }
-            if(typeof self.onend === 'function') self.onend();
-          })
+          }, 400);
+        });
+        timeoutId = setTimeout(function(){ finish(gotResult ? undefined : 'no-speech'); }, 15000);
+
+        CapSTT.start({ language: self.lang || 'en-US', partialResults: true, popup: false, maxResults: 1 })
           .catch(function(err){
-            listenerPromise.then(function(h){ h.remove(); }).catch(function(){});
-            if(!self._active) return;
-            self._active = false;
             const msg = (err && err.message) || '';
             const code = /permission|denied/i.test(msg) ? 'not-allowed' : (/network/i.test(msg) ? 'network' : 'no-speech');
-            if(typeof self.onerror === 'function') self.onerror({ error: code });
-            if(typeof self.onend === 'function') self.onend();
+            finish(code);
           });
       }).catch(function(){
         self._active = false;
@@ -220,7 +260,12 @@ NATIVE_BRIDGE_SCRIPT = """
       });
     };
     NativeRecognition.prototype.stop = function(){
-      this._active = false;
+      // Don't clear _active here — that would make the 'listeningState:stopped'
+      // event this stop() call itself triggers get ignored by the listener
+      // above (it bails out once _active is false), so onend() would never
+      // fire and the UI would stay stuck showing "listening". Let the normal
+      // finish() flow (event or timeout) clear it once recognition actually
+      // stops.
       if(CapSTT) CapSTT.stop().catch(function(){});
     };
 
