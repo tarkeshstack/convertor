@@ -117,30 +117,27 @@ NATIVE_BRIDGE_SCRIPT = """
    CAPACITOR NATIVE BRIDGE (Android/iOS app shell)
    No-op when running as a plain website — window.Capacitor is
    only defined when the page is loaded inside the native app.
+
+   Capacitor Android auto-injects window.Capacitor.Plugins.<Name> for
+   every native plugin registered in capacitor.settings.gradle (see
+   JSExport.getPluginJS in @capacitor/android) — there is no separate
+   JS bundle to load for that. An earlier version of this bridge tried
+   to <script src> the plugins' own dist/plugin.js UMD builds, but
+   those reference a `capacitorExports` global that this runtime never
+   defines (it only exists in @capacitor/core's standalone browser
+   bundle, which isn't part of this app), so every one of those loads
+   silently threw and left status bar theming, the back button, mic,
+   and speaker all non-functional. Talk to window.Capacitor.Plugins
+   directly instead.
    ============================================================ */
 (function(){
-  if(!window.Capacitor) return;
+  if(!window.Capacitor || !window.Capacitor.Plugins) return;
 
-  function loadPlugin(src){
-    return new Promise(function(resolve){
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = resolve;
-      s.onerror = resolve;
-      document.body.appendChild(s);
-    });
-  }
-
-  Promise.all([
-    loadPlugin('capacitor-plugins/app.js'),
-    loadPlugin('capacitor-plugins/status-bar.js'),
-    loadPlugin('capacitor-plugins/text-to-speech.js'),
-    loadPlugin('capacitor-plugins/speech-recognition.js')
-  ]).then(function(){
-    const CapApp = window.capacitorApp && window.capacitorApp.App;
-    const CapStatusBar = window.capacitorStatusBar && window.capacitorStatusBar.StatusBar;
-    const CapTTS = window.capacitorTextToSpeech && window.capacitorTextToSpeech.TextToSpeech;
-    const CapSTT = window.capacitorSpeechRecognition && window.capacitorSpeechRecognition.SpeechRecognition;
+  (function(){
+    const CapApp = window.Capacitor.Plugins.App;
+    const CapStatusBar = window.Capacitor.Plugins.StatusBar;
+    const CapTTS = window.Capacitor.Plugins.TextToSpeech;
+    const CapSTT = window.Capacitor.Plugins.SpeechRecognition;
 
     if(CapStatusBar){
       CapStatusBar.setBackgroundColor({ color: '#FDFCFA' }).catch(function(){});
@@ -299,7 +296,7 @@ NATIVE_BRIDGE_SCRIPT = """
         if(activeRelayRecognition){ activeRelayRecognition.stop(); activeRelayRecognition = null; }
       }
     });
-  });
+  })();
 })();
 </script>
 """
