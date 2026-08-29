@@ -52,9 +52,22 @@ jobs:
           name: wordly-debug-apk
           path: ${{ steps.apk.outputs.path }}
 
-      - name: Build release AAB (unsigned)
+      - name: Decode release keystore
+        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
+        working-directory: android/app
+        run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+
+      - name: Build release AAB
+        id: bundle
         working-directory: android
-        run: ./gradlew bundleRelease --no-daemon
+        env:
+          RELEASE_KEYSTORE_PATH: release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew bundleRelease --no-daemon
+          if [ -f app/release.keystore ]; then echo "signed=true" >> "$GITHUB_OUTPUT"; else echo "signed=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Locate AAB
         id: aab
@@ -65,7 +78,7 @@ jobs:
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wordly-release-aab-unsigned
+          name: wordly-release-aab
           path: ${{ steps.aab.outputs.path }}
 
       - name: Publish APK/AAB as a GitHub Release
@@ -77,7 +90,7 @@ jobs:
             Automatically built for commit ${{ github.sha }} on branch `${{ github.ref_name }}`.
 
             - `app-debug.apk` — debug build (unsigned for release, self-signed with the default debug key), for installing directly on a device to test.
-            - `app-release.aab` — **unsigned** release Android App Bundle for Play Store submission. It must be signed with a release keystore before uploading to Play Console — this workflow does not embed a signing key.
+            - `app-release.aab` — release Android App Bundle for Play Store submission. ${{ steps.bundle.outputs.signed == 'true' && 'Signed with the configured release keystore — ready to upload to Play Console as-is.' || '**Unsigned** — the RELEASE_KEYSTORE_* secrets are not configured on this repo, so it needs to be signed with a release keystore before uploading to Play Console.' }}
           files: |
             ${{ steps.apk.outputs.path }}
             ${{ steps.aab.outputs.path }}
