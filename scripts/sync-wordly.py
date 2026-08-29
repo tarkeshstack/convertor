@@ -494,16 +494,8 @@ def patch_speakeasy_share_save(fragment: str) -> str:
   // reliably, unlike this WebView's own Web Share API. Outside the app
   // (e.g. testing this tool standalone in a browser) falls back to the
   // original text-only share.
-  // Small attribution appended to anything copied or shared out of
-  // SpeakEasy — the text credit line, and (since apps generally can't show
-  // a caption next to a shared audio file) also what ends up on the
-  // clipboard alongside the voice note. The URL is plain text rather than
-  // an HTML link since that's all a share/clipboard payload can carry, but
-  // messaging apps auto-linkify it into a clickable link on their end.
-  var WORDLY_CREDIT = "\\n\\n— translated with Wordly · https://tarkeshstack.github.io/wordly/";
-
   function shareResult(originalText, translatedText, targetCode) {
-    var combined = translatedText + "\\n" + originalText + WORDLY_CREDIT;
+    var combined = translatedText + "\\n" + originalText;
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "wordly-speech:share", text: combined, ttsText: translatedText, lang: targetCode }, "*");
       // Most share targets (WhatsApp included) don't show a caption next to
@@ -528,7 +520,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     if (state.result) saveAudio(state.result.translatedText, state.result.targetCode);
   });"""
     new_listeners = """  document.getElementById("copyBtn").addEventListener("click", function () {
-    if (state.result) copyText(state.result.translatedText + WORDLY_CREDIT);
+    if (state.result) copyText(state.result.translatedText + "\\n" + state.result.originalText);
   });
   document.getElementById("shareBtn").addEventListener("click", function () {
     if (state.result) shareResult(state.result.originalText, state.result.translatedText, state.result.targetCode);
