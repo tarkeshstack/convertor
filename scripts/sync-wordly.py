@@ -478,7 +478,15 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     a.remove();
     flashAction("Downloading…");
   }"""
-    new_share_fn = """  function shareTextOnly(text) {
+    new_share_fn = """  // Small attribution appended to anything copied or shared out of
+  // SpeakEasy — the text credit line, and (since apps generally can't show
+  // a caption next to a shared audio file) also what ends up on the
+  // clipboard alongside the voice note. The URL is plain text rather than
+  // an HTML link since that's all a share/clipboard payload can carry, but
+  // messaging apps auto-linkify it into a clickable link on their end.
+  var WORDLY_CREDIT = "\\n\\n— translated with Wordly · https://github.com/tarkeshstack/wordly";
+
+  function shareTextOnly(text) {
     if (navigator.share) {
       navigator.share({ title: "SpeakEasy translation", text: text }).catch(function () {});
     } else {
@@ -495,7 +503,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
   // (e.g. testing this tool standalone in a browser) falls back to the
   // original text-only share.
   function shareResult(originalText, translatedText, targetCode) {
-    var combined = translatedText + "\\n" + originalText;
+    var combined = translatedText + "\\n" + originalText + WORDLY_CREDIT;
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "wordly-speech:share", text: combined, ttsText: translatedText, lang: targetCode }, "*");
       // Most share targets (WhatsApp included) don't show a caption next to
@@ -522,6 +530,16 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     if old_listeners not in fragment:
         raise ValueError("speakeasy shareBtn/saveBtn listeners not found — upstream logic changed")
     fragment = fragment.replace(old_listeners, new_listeners)
+
+    old_copy_listener = """  document.getElementById("copyBtn").addEventListener("click", function () {
+    if (state.result) copyText(state.result.translatedText);
+  });"""
+    new_copy_listener = """  document.getElementById("copyBtn").addEventListener("click", function () {
+    if (state.result) copyText(state.result.translatedText + WORDLY_CREDIT);
+  });"""
+    if old_copy_listener not in fragment:
+        raise ValueError("speakeasy copyBtn listener not found — upstream logic changed")
+    fragment = fragment.replace(old_copy_listener, new_copy_listener)
 
     return fragment
 
