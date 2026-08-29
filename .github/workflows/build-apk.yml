@@ -52,13 +52,32 @@ jobs:
           name: wordly-debug-apk
           path: ${{ steps.apk.outputs.path }}
 
-      - name: Publish APK as a GitHub Release
+      - name: Build release AAB (unsigned)
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Locate AAB
+        id: aab
+        run: |
+          aab_path=$(find android/app/build/outputs/bundle/release -name '*.aab' | head -n1)
+          echo "path=$aab_path" >> "$GITHUB_OUTPUT"
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordly-release-aab-unsigned
+          path: ${{ steps.aab.outputs.path }}
+
+      - name: Publish APK/AAB as a GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-${{ github.run_id }}
           name: Wordly debug APK (build ${{ github.run_number }})
           body: |
-            Automatically built debug APK for commit ${{ github.sha }} on branch `${{ github.ref_name }}`.
+            Automatically built for commit ${{ github.sha }} on branch `${{ github.ref_name }}`.
 
-            This is a debug build (unsigned for release, self-signed with the default debug key) intended for installing directly on a device for testing. Enable "Install from unknown sources" for your file manager/browser to sideload it.
-          files: ${{ steps.apk.outputs.path }}
+            - `app-debug.apk` — debug build (unsigned for release, self-signed with the default debug key), for installing directly on a device to test.
+            - `app-release.aab` — **unsigned** release Android App Bundle for Play Store submission. It must be signed with a release keystore before uploading to Play Console — this workflow does not embed a signing key.
+          files: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.aab.outputs.path }}
