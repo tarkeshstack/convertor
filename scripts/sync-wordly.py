@@ -1109,6 +1109,24 @@ def patch_writing_prev_btn(fragment: str) -> str:
     return fragment
 
 
+def patch_writing_remove_auto_check(fragment: str) -> str:
+    """Drop the automatic tracing check entirely — after several rounds of
+    tolerance/algorithm fixes it was still flagged as unreliable. Simpler
+    and more predictable: let the user draw freely with no pass/fail
+    judgment, and move between characters only via the explicit
+    Previous/Next buttons. This is a one-line change since onStrokeEnd is
+    already an optional callback — just stop wiring handleCheck (and the
+    scoring/auto-advance path hanging off it) into the pad at all."""
+
+    old_open_practice = """    practice.pad = createWritingPad(canvas, padSize(), handleCheck);"""
+    new_open_practice = """    practice.pad = createWritingPad(canvas, padSize());"""
+    if old_open_practice not in fragment:
+        raise ValueError("writing openPractice() pad wiring not found — upstream logic changed")
+    fragment = fragment.replace(old_open_practice, new_open_practice)
+
+    return fragment
+
+
 def inject_after_head(fragment: str) -> str:
     idx = fragment.find("<head>")
     if idx != -1:
@@ -1136,6 +1154,7 @@ def patch_template(html: str, template_id: str) -> str:
         fragment = patch_writing_remove_practice_back_link(fragment)
         fragment = patch_writing_guide_tolerance(fragment)
         fragment = patch_writing_prev_btn(fragment)
+        fragment = patch_writing_remove_auto_check(fragment)
     elif template_id == "scanline-src":
         fragment = patch_scanline_ocr_confidence(fragment)
         fragment = patch_scanline_lang_prompt(fragment)

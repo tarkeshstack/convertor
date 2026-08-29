@@ -6918,7 +6918,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
     practice.streak = 0;
     showScreen("practice-screen");
     var canvas = document.getElementById("pad-canvas");
-    practice.pad = createWritingPad(canvas, padSize(), handleCheck);
+    practice.pad = createWritingPad(canvas, padSize());
     renderPracticeCurrent(true);
   }
 
