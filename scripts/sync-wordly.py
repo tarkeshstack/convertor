@@ -365,6 +365,33 @@ NATIVE_BRIDGE_SCRIPT = """
       });
     }
 
+    // ---- Native save/share for Scanline (Image Translator) — same reasoning
+    // as shareSpeakEasyAudio above: a WebView's own download-via-<a download>
+    // and Web Share API are both unreliable here, so this writes the
+    // translated-image PNG to the cache dir and hands it to Android's real
+    // share sheet, which lets the user pick where to save it (Files, Photos,
+    // Drive, etc.) — there's no permission-free way to write straight into
+    // shared storage on modern Android without that picker.
+    function saveScanlineImage(base64Png, mode){
+      if(!CapFS || !CapShare || !base64Png) return;
+      const path = 'scanline-translated.png';
+      CapFS.writeFile({ path: path, data: base64Png, directory: 'CACHE' }).then(function(){
+        return CapFS.getUri({ path: path, directory: 'CACHE' });
+      }).then(function(uriResult){
+        return CapShare.share({
+          title: mode === 'download' ? 'Save image' : 'Image Translator',
+          text: mode === 'download' ? undefined : 'Translated with Wordly Image Translator',
+          files: [uriResult.uri],
+          dialogTitle: mode === 'download' ? 'Save image to your device' : 'Share translated image'
+        });
+      }).catch(function(){ /* user cancelled, or write/share failed — nothing to fall back to here */ });
+    }
+    window.addEventListener('message', function(e){
+      const data = e.data;
+      if(!data || typeof data !== 'object' || data.type !== 'wordly-scanline:save') return;
+      saveScanlineImage(data.data, data.mode);
+    });
+
     // ---- Message relay: answers the postMessage speech shim running inside
     // the SpeakEasy / Writing Practice blob: iframes (see sync-wordly.py). ----
     let activeRelayRecognition = null;
@@ -577,6 +604,260 @@ def patch_speakeasy_credit_caption(fragment: str) -> str:
     return fragment
 
 
+def patch_scanline_ocr_confidence(fragment: str) -> str:
+    """Filter out Tesseract's low-confidence noise "detections" — e.g. a
+    photo with no text at all (bark, leaves, texture) still produced short
+    junk strings that then got "translated" into nonsense, making it look
+    like a photo of a tree was mistranslated. Line-level confidence plus a
+    minimum length and an actual-letter/digit check reject that noise while
+    still accepting real (if imperfect) OCR text."""
+
+    old_filter = """    lines = (data.lines || [])
+      .map(l=>({ bbox: l.bbox, text: l.text.trim() }))
+      .filter(l=> l.text.length > 0);"""
+    new_filter = """    lines = (data.lines || [])
+      .map(l=>({ bbox: l.bbox, text: l.text.trim(), confidence: l.confidence }))
+      .filter(l=> l.text.length > 1 && (l.confidence === undefined || l.confidence >= 60) && /[\\p{L}\\p{N}]/u.test(l.text));"""
+    if old_filter not in fragment:
+        raise ValueError("scanline OCR line filter not found — upstream logic changed")
+    fragment = fragment.replace(old_filter, new_filter)
+
+    return fragment
+
+
+def patch_scanline_lang_prompt(fragment: str) -> str:
+    """Move the From/To language selects out of the always-visible top row
+    and into a prompt that appears only after an image is uploaded, right
+    where the selects used to sit — so translation doesn't start (with
+    whatever languages happened to be selected before) until the user has
+    actually confirmed the languages for this image."""
+
+    old_top_row = """    <div class="topRow">
+      <label class="fieldLabel">From
+        <select id="fromSelect"></select>
+      </label>
+      <label class="fieldLabel">To
+        <select id="toSelect"></select>
+      </label>
+      <div class="cornerActions">
+        <button class="downloadCorner" id="shareBtn" disabled title="Share image with translation" aria-label="Share image with translation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+            <path d="M8.6 10.5l6.8-3.9"/><path d="M8.6 13.5l6.8 3.9"/>
+          </svg>
+        </button>
+        <button class="downloadCorner" id="downloadBtn" disabled title="Download image with translation" aria-label="Download image with translation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
+          </svg>
+        </button>
+      </div>
+    </div>"""
+    new_top_row = """    <div class="topRow">
+      <div class="cornerActions">
+        <button class="downloadCorner" id="shareBtn" disabled title="Share image with translation" aria-label="Share image with translation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+            <path d="M8.6 10.5l6.8-3.9"/><path d="M8.6 13.5l6.8 3.9"/>
+          </svg>
+        </button>
+        <button class="downloadCorner" id="downloadBtn" disabled title="Download image with translation" aria-label="Download image with translation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="topRow" id="langPrompt">
+      <label class="fieldLabel">From
+        <select id="fromSelect"></select>
+      </label>
+      <label class="fieldLabel">To
+        <select id="toSelect"></select>
+      </label>
+      <button class="btn primary" id="translateBtn" type="button">Translate</button>
+    </div>"""
+    if old_top_row not in fragment:
+        raise ValueError("scanline topRow markup not found — upstream layout changed")
+    fragment = fragment.replace(old_top_row, new_top_row)
+
+    old_css = """  .topRow, .actionRow{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
+  }
+  .topRow{ margin-top: 6px; }
+  .actionRow{ margin-top:12px; }"""
+    new_css = """  .topRow, .actionRow{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
+  }
+  .topRow{ margin-top: 6px; }
+  .actionRow{ margin-top:12px; }
+  #langPrompt{ display:none; }
+  #langPrompt.show{ display:flex; }"""
+    if old_css not in fragment:
+        raise ValueError("scanline .topRow CSS not found — upstream styles changed")
+    fragment = fragment.replace(old_css, new_css)
+
+    old_consts = """const fromSelect = document.getElementById('fromSelect');
+const toSelect = document.getElementById('toSelect');
+const statusEl = document.getElementById('status');"""
+    new_consts = """const fromSelect = document.getElementById('fromSelect');
+const toSelect = document.getElementById('toSelect');
+const langPrompt = document.getElementById('langPrompt');
+const translateBtn = document.getElementById('translateBtn');
+const statusEl = document.getElementById('status');"""
+    if old_consts not in fragment:
+        raise ValueError("scanline const declarations not found — upstream logic changed")
+    fragment = fragment.replace(old_consts, new_consts)
+
+    old_prevent_lang = """fromSelect.addEventListener('change', ()=>{ preventSameLang(fromSelect, toSelect); });
+toSelect.addEventListener('change', ()=> preventSameLang(toSelect, fromSelect));"""
+    new_prevent_lang = """fromSelect.addEventListener('change', ()=>{ preventSameLang(fromSelect, toSelect); });
+toSelect.addEventListener('change', ()=> preventSameLang(toSelect, fromSelect));
+translateBtn.addEventListener('click', ()=>{
+  langPrompt.classList.remove('show');
+  runScanAndTranslate();
+});"""
+    if old_prevent_lang not in fragment:
+        raise ValueError("scanline language-select listeners not found — upstream logic changed")
+    fragment = fragment.replace(old_prevent_lang, new_prevent_lang)
+
+    old_load_file = """function loadFile(file){
+  const img = new Image();
+  img.onload = ()=>{
+    baseImage = img;
+    drawBase();
+    placeholder.hidden = true;
+    canvas.hidden = false;
+    downloadBtn.disabled = true;
+    shareBtn.disabled = true;
+    resultsEl.hidden = true;
+    lines = [];
+    setStatus('');
+    runScanAndTranslate();
+  };
+  img.src = URL.createObjectURL(file);
+}"""
+    new_load_file = """function loadFile(file){
+  const img = new Image();
+  img.onload = ()=>{
+    baseImage = img;
+    drawBase();
+    placeholder.hidden = true;
+    canvas.hidden = false;
+    downloadBtn.disabled = true;
+    shareBtn.disabled = true;
+    resultsEl.hidden = true;
+    lines = [];
+    setStatus('');
+    langPrompt.classList.add('show');
+  };
+  img.src = URL.createObjectURL(file);
+}"""
+    if old_load_file not in fragment:
+        raise ValueError("scanline loadFile() not found — upstream logic changed")
+    fragment = fragment.replace(old_load_file, new_load_file)
+
+    return fragment
+
+
+def patch_scanline_share_download(fragment: str) -> str:
+    """Route Download/Share to the parent page's real Android Filesystem +
+    Share plugins instead of a WebView <a download> click (which doesn't
+    trigger Android's download manager here) and the Web Share API (already
+    proven unreliable for file attachments in this WebView — see
+    shareSpeakEasyAudio/patch_speakeasy_share_save). Falls back to the
+    original browser-only behavior when opened standalone outside the app."""
+
+    old_buttons = """downloadBtn.addEventListener('click', ()=>{
+  if(!baseImage) return;
+  canvas.toBlob(blob=>{
+    if(!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'scanline-translated.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+});
+
+shareBtn.addEventListener('click', ()=>{
+  if(!baseImage) return;
+  canvas.toBlob(async blob=>{
+    if(!blob) return;
+    const file = new File([blob], 'scanline-translated.png', { type: 'image/png' });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      try{
+        await navigator.share({ files: [file], title: 'Image Translator', text: 'Translated with Image Translator' });
+      }catch(err){
+        // user cancelled the share sheet — nothing to do
+      }
+    } else if(navigator.share){
+      try{
+        await navigator.share({ title: 'Image Translator', text: 'Translated with Image Translator' });
+      }catch(err){ /* cancelled */ }
+    } else {
+      setStatus('Sharing isn\\'t supported in this browser — try Download instead.', {err:true});
+    }
+  }, 'image/png');
+});"""
+    new_buttons = """downloadBtn.addEventListener('click', ()=>{
+  if(!baseImage) return;
+  if(window.parent && window.parent !== window){
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    window.parent.postMessage({ type: 'wordly-scanline:save', mode: 'download', data: base64 }, '*');
+    setStatus('Choose an app to save the image to (Files, Photos, Drive\\u2026).');
+    return;
+  }
+  canvas.toBlob(blob=>{
+    if(!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'scanline-translated.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+});
+
+shareBtn.addEventListener('click', ()=>{
+  if(!baseImage) return;
+  if(window.parent && window.parent !== window){
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    window.parent.postMessage({ type: 'wordly-scanline:save', mode: 'share', data: base64 }, '*');
+    setStatus('Opening the share sheet\\u2026');
+    return;
+  }
+  canvas.toBlob(async blob=>{
+    if(!blob) return;
+    const file = new File([blob], 'scanline-translated.png', { type: 'image/png' });
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      try{
+        await navigator.share({ files: [file], title: 'Image Translator', text: 'Translated with Image Translator' });
+      }catch(err){
+        // user cancelled the share sheet — nothing to do
+      }
+    } else if(navigator.share){
+      try{
+        await navigator.share({ title: 'Image Translator', text: 'Translated with Image Translator' });
+      }catch(err){ /* cancelled */ }
+    } else {
+      setStatus('Sharing isn\\'t supported in this browser — try Download instead.', {err:true});
+    }
+  }, 'image/png');
+});"""
+    if old_buttons not in fragment:
+        raise ValueError("scanline download/share button handlers not found — upstream logic changed")
+    fragment = fragment.replace(old_buttons, new_buttons)
+
+    return fragment
+
+
 def inject_after_head(fragment: str) -> str:
     idx = fragment.find("<head>")
     if idx != -1:
@@ -594,10 +875,15 @@ def patch_template(html: str, template_id: str) -> str:
     start = html.index(start_marker)
     end = html.index("</template>", start)
     before, fragment, after = html[:start], html[start:end], html[end:]
-    fragment = inject_after_head(fragment)
+    if template_id in ("speakeasy-src", "writing-src"):
+        fragment = inject_after_head(fragment)
     if template_id == "speakeasy-src":
         fragment = patch_speakeasy_share_save(fragment)
         fragment = patch_speakeasy_credit_caption(fragment)
+    elif template_id == "scanline-src":
+        fragment = patch_scanline_ocr_confidence(fragment)
+        fragment = patch_scanline_lang_prompt(fragment)
+        fragment = patch_scanline_share_download(fragment)
     return before + fragment + after
 
 
@@ -608,7 +894,7 @@ def main():
     src_dir = Path(sys.argv[1])
     src_html = (src_dir / "index.html").read_text(encoding="utf-8")
 
-    for template_id in ("speakeasy-src", "writing-src"):
+    for template_id in ("speakeasy-src", "writing-src", "scanline-src"):
         src_html = patch_template(src_html, template_id)
 
     marker = "</body>"

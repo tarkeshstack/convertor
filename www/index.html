@@ -4207,6 +4207,8 @@ window.addEventListener('message', (e)=>{
   }
   .topRow{ margin-top: 6px; }
   .actionRow{ margin-top:12px; }
+  #langPrompt{ display:none; }
+  #langPrompt.show{ display:flex; }
 
   select, .btn{
     font-family:'Space Grotesk', sans-serif;
@@ -4328,12 +4330,6 @@ window.addEventListener('message', (e)=>{
 
   <main>
     <div class="topRow">
-      <label class="fieldLabel">From
-        <select id="fromSelect"></select>
-      </label>
-      <label class="fieldLabel">To
-        <select id="toSelect"></select>
-      </label>
       <div class="cornerActions">
         <button class="downloadCorner" id="shareBtn" disabled title="Share image with translation" aria-label="Share image with translation">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -4347,6 +4343,16 @@ window.addEventListener('message', (e)=>{
           </svg>
         </button>
       </div>
+    </div>
+
+    <div class="topRow" id="langPrompt">
+      <label class="fieldLabel">From
+        <select id="fromSelect"></select>
+      </label>
+      <label class="fieldLabel">To
+        <select id="toSelect"></select>
+      </label>
+      <button class="btn primary" id="translateBtn" type="button">Translate</button>
     </div>
 
     <div class="viewfinder" id="viewfinder">
@@ -4389,6 +4395,8 @@ const ctx = canvas.getContext('2d');
 const scanline = document.getElementById('scanline');
 const fromSelect = document.getElementById('fromSelect');
 const toSelect = document.getElementById('toSelect');
+const langPrompt = document.getElementById('langPrompt');
+const translateBtn = document.getElementById('translateBtn');
 const statusEl = document.getElementById('status');
 const resultsEl = document.getElementById('results');
 const resultListEl = document.getElementById('resultList');
@@ -4418,6 +4426,10 @@ function preventSameLang(changed, other){
 }
 fromSelect.addEventListener('change', ()=>{ preventSameLang(fromSelect, toSelect); });
 toSelect.addEventListener('change', ()=> preventSameLang(toSelect, fromSelect));
+translateBtn.addEventListener('click', ()=>{
+  langPrompt.classList.remove('show');
+  runScanAndTranslate();
+});
 
 viewfinder.addEventListener('click', ()=>{ if(!busy) fileInput.click(); });
 ['dragover'].forEach(evt=> viewfinder.addEventListener(evt, e=>{ e.preventDefault(); viewfinder.classList.add('drag'); }));
@@ -4443,7 +4455,7 @@ function loadFile(file){
     resultsEl.hidden = true;
     lines = [];
     setStatus('');
-    runScanAndTranslate();
+    langPrompt.classList.add('show');
   };
   img.src = URL.createObjectURL(file);
 }
@@ -4626,8 +4638,8 @@ async function runScanAndTranslate(){
     await worker.terminate();
 
     lines = (data.lines || [])
-      .map(l=>({ bbox: l.bbox, text: l.text.trim() }))
-      .filter(l=> l.text.length > 0);
+      .map(l=>({ bbox: l.bbox, text: l.text.trim(), confidence: l.confidence }))
+      .filter(l=> l.text.length > 1 && (l.confidence === undefined || l.confidence >= 60) && /[\p{L}\p{N}]/u.test(l.text));
 
     if(lines.length === 0){
       setStatus('No text detected in this image.', {err:true});
@@ -4677,6 +4689,12 @@ function renderResultList(){
 
 downloadBtn.addEventListener('click', ()=>{
   if(!baseImage) return;
+  if(window.parent && window.parent !== window){
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    window.parent.postMessage({ type: 'wordly-scanline:save', mode: 'download', data: base64 }, '*');
+    setStatus('Choose an app to save the image to (Files, Photos, Drive\u2026).');
+    return;
+  }
   canvas.toBlob(blob=>{
     if(!blob) return;
     const url = URL.createObjectURL(blob);
@@ -4692,6 +4710,12 @@ downloadBtn.addEventListener('click', ()=>{
 
 shareBtn.addEventListener('click', ()=>{
   if(!baseImage) return;
+  if(window.parent && window.parent !== window){
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    window.parent.postMessage({ type: 'wordly-scanline:save', mode: 'share', data: base64 }, '*');
+    setStatus('Opening the share sheet\u2026');
+    return;
+  }
   canvas.toBlob(async blob=>{
     if(!blob) return;
     const file = new File([blob], 'scanline-translated.png', { type: 'image/png' });
@@ -7232,6 +7256,33 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
         textOnlyFallback();
       });
     }
+
+    // ---- Native save/share for Scanline (Image Translator) — same reasoning
+    // as shareSpeakEasyAudio above: a WebView's own download-via-<a download>
+    // and Web Share API are both unreliable here, so this writes the
+    // translated-image PNG to the cache dir and hands it to Android's real
+    // share sheet, which lets the user pick where to save it (Files, Photos,
+    // Drive, etc.) — there's no permission-free way to write straight into
+    // shared storage on modern Android without that picker.
+    function saveScanlineImage(base64Png, mode){
+      if(!CapFS || !CapShare || !base64Png) return;
+      const path = 'scanline-translated.png';
+      CapFS.writeFile({ path: path, data: base64Png, directory: 'CACHE' }).then(function(){
+        return CapFS.getUri({ path: path, directory: 'CACHE' });
+      }).then(function(uriResult){
+        return CapShare.share({
+          title: mode === 'download' ? 'Save image' : 'Image Translator',
+          text: mode === 'download' ? undefined : 'Translated with Wordly Image Translator',
+          files: [uriResult.uri],
+          dialogTitle: mode === 'download' ? 'Save image to your device' : 'Share translated image'
+        });
+      }).catch(function(){ /* user cancelled, or write/share failed — nothing to fall back to here */ });
+    }
+    window.addEventListener('message', function(e){
+      const data = e.data;
+      if(!data || typeof data !== 'object' || data.type !== 'wordly-scanline:save') return;
+      saveScanlineImage(data.data, data.mode);
+    });
 
     // ---- Message relay: answers the postMessage speech shim running inside
     // the SpeakEasy / Writing Practice blob: iframes (see sync-wordly.py). ----
