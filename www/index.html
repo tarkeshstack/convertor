@@ -6066,10 +6066,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
     font-size: 18px;
   }
 
-  .pad-wrapper { display: flex; justify-content: center; position: relative; }
-  .pad-corner-btn { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; }
-  .pad-corner-btn.pad-corner-left { left: -6px; }
-  .pad-corner-btn.pad-corner-right { right: -6px; }
+  .pad-wrapper { display: flex; justify-content: center; }
   #pad-canvas {
     background: var(--canvas-bg);
     border-radius: 20px;
@@ -6079,7 +6076,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
   }
   .pad-toolbar {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     gap: 8px;
     max-width: 380px;
     margin: 0 auto 8px;
@@ -6250,19 +6247,19 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
     </div>
 
     <div class="pad-toolbar">
+      <button class="pad-icon-btn" id="prev-btn" title="Previous" aria-label="Previous">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
+      </button>
       <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      </button>
+      <button class="pad-icon-btn" id="skip-btn" title="Next" aria-label="Next">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
       </button>
     </div>
 
     <div class="pad-wrapper">
-      <button class="pad-icon-btn pad-corner-btn pad-corner-left" id="prev-btn" title="Previous" aria-label="Previous">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
-      </button>
       <canvas id="pad-canvas"></canvas>
-      <button class="pad-icon-btn pad-corner-btn pad-corner-right" id="skip-btn" title="Next" aria-label="Next">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
-      </button>
     </div>
 
     <div class="message-area">

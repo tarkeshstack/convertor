@@ -1031,50 +1031,34 @@ def patch_writing_guide_tolerance(fragment: str) -> str:
 
 
 def patch_writing_prev_btn(fragment: str) -> str:
-    """Add a "Previous" button to go back a character, and move it and the
-    existing "Next" (skip) button to float over the left/right corners of
-    the writing pad itself, leaving the "Redo" (clear) button alone and
-    centered in the toolbar row above."""
+    """Add a "Previous" button to go back a character, sharing the toolbar
+    row above the writing pad with the existing "Redo" and "Next" buttons —
+    Previous flush to the left edge, Next flush to the right edge, Redo
+    sitting on its own dead-center between them (space-between with exactly
+    three same-sized items centers the middle one)."""
 
-    old_toolbar_and_pad = """    <div class="pad-toolbar">
+    old_toolbar = """    <div class="pad-toolbar">
       <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
       </button>
       <button class="pad-icon-btn" id="skip-btn" title="Next" aria-label="Next">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
       </button>
-    </div>
-
-    <div class="pad-wrapper">
-      <canvas id="pad-canvas"></canvas>
     </div>"""
-    new_toolbar_and_pad = """    <div class="pad-toolbar">
+    new_toolbar = """    <div class="pad-toolbar">
+      <button class="pad-icon-btn" id="prev-btn" title="Previous" aria-label="Previous">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
+      </button>
       <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
       </button>
-    </div>
-
-    <div class="pad-wrapper">
-      <button class="pad-icon-btn pad-corner-btn pad-corner-left" id="prev-btn" title="Previous" aria-label="Previous">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
-      </button>
-      <canvas id="pad-canvas"></canvas>
-      <button class="pad-icon-btn pad-corner-btn pad-corner-right" id="skip-btn" title="Next" aria-label="Next">
+      <button class="pad-icon-btn" id="skip-btn" title="Next" aria-label="Next">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
       </button>
     </div>"""
-    if old_toolbar_and_pad not in fragment:
-        raise ValueError("writing pad-toolbar/pad-wrapper markup not found — upstream layout changed")
-    fragment = fragment.replace(old_toolbar_and_pad, new_toolbar_and_pad)
-
-    old_css = """  .pad-wrapper { display: flex; justify-content: center; }"""
-    new_css = """  .pad-wrapper { display: flex; justify-content: center; position: relative; }
-  .pad-corner-btn { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; }
-  .pad-corner-btn.pad-corner-left { left: -6px; }
-  .pad-corner-btn.pad-corner-right { right: -6px; }"""
-    if old_css not in fragment:
-        raise ValueError("writing .pad-wrapper CSS not found — upstream styles changed")
-    fragment = fragment.replace(old_css, new_css)
+    if old_toolbar not in fragment:
+        raise ValueError("writing pad-toolbar markup not found — upstream layout changed")
+    fragment = fragment.replace(old_toolbar, new_toolbar)
 
     old_toolbar_css = """  .pad-toolbar {
     display: flex;
@@ -1086,7 +1070,7 @@ def patch_writing_prev_btn(fragment: str) -> str:
   }"""
     new_toolbar_css = """  .pad-toolbar {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     gap: 8px;
     max-width: 380px;
     margin: 0 auto 8px;
