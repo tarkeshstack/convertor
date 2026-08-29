@@ -5148,6 +5148,16 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
     font-weight: 600;
     font-size: 19px;
   }
+  .wordly-credit {
+    margin: 0;
+    font-size: 10px;
+    color: var(--on-surface-variant);
+  }
+  .wordly-credit a {
+    color: var(--chakra-blue);
+    text-decoration: none;
+  }
+  .wordly-credit a:hover, .wordly-credit a:active { text-decoration: underline; }
 
   [hidden] { display: none !important; }
 </style>
@@ -5238,6 +5248,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
       <p class="original" id="originalText"></p>
       <p class="label" id="targetLabel">Translation</p>
       <p class="translated" id="translatedText"></p>
+      <p class="wordly-credit">translated with <a href="https://tarkeshstack.github.io/wordly/" target="_blank" rel="noopener">Wordly</a></p>
       <p class="action-flash" id="actionFlash" hidden></p>
     </section>
   </main>
@@ -5525,14 +5536,6 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
     }
   }
 
-  // Small attribution appended to anything copied or shared out of
-  // SpeakEasy — the text credit line, and (since apps generally can't show
-  // a caption next to a shared audio file) also what ends up on the
-  // clipboard alongside the voice note. The URL is plain text rather than
-  // an HTML link since that's all a share/clipboard payload can carry, but
-  // messaging apps auto-linkify it into a clickable link on their end.
-  var WORDLY_CREDIT = "\n\n— translated with Wordly · https://tarkeshstack.github.io/wordly/";
-
   function shareTextOnly(text) {
     if (navigator.share) {
       navigator.share({ title: "SpeakEasy translation", text: text }).catch(function () {});
@@ -5550,7 +5553,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
   // (e.g. testing this tool standalone in a browser) falls back to the
   // original text-only share.
   function shareResult(originalText, translatedText, targetCode) {
-    var combined = translatedText + "\n" + originalText + WORDLY_CREDIT;
+    var combined = translatedText + "\n" + originalText;
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "wordly-speech:share", text: combined, ttsText: translatedText, lang: targetCode }, "*");
       // Most share targets (WhatsApp included) don't show a caption next to
@@ -5563,7 +5566,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
   }
 
   document.getElementById("copyBtn").addEventListener("click", function () {
-    if (state.result) copyText(state.result.translatedText + WORDLY_CREDIT);
+    if (state.result) copyText(state.result.translatedText);
   });
   document.getElementById("shareBtn").addEventListener("click", function () {
     if (state.result) shareResult(state.result.originalText, state.result.translatedText, state.result.targetCode);

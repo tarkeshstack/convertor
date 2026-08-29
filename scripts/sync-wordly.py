@@ -478,15 +478,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     a.remove();
     flashAction("Downloading…");
   }"""
-    new_share_fn = """  // Small attribution appended to anything copied or shared out of
-  // SpeakEasy — the text credit line, and (since apps generally can't show
-  // a caption next to a shared audio file) also what ends up on the
-  // clipboard alongside the voice note. The URL is plain text rather than
-  // an HTML link since that's all a share/clipboard payload can carry, but
-  // messaging apps auto-linkify it into a clickable link on their end.
-  var WORDLY_CREDIT = "\\n\\n— translated with Wordly · https://tarkeshstack.github.io/wordly/";
-
-  function shareTextOnly(text) {
+    new_share_fn = """  function shareTextOnly(text) {
     if (navigator.share) {
       navigator.share({ title: "SpeakEasy translation", text: text }).catch(function () {});
     } else {
@@ -503,7 +495,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
   // (e.g. testing this tool standalone in a browser) falls back to the
   // original text-only share.
   function shareResult(originalText, translatedText, targetCode) {
-    var combined = translatedText + "\\n" + originalText + WORDLY_CREDIT;
+    var combined = translatedText + "\\n" + originalText;
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "wordly-speech:share", text: combined, ttsText: translatedText, lang: targetCode }, "*");
       // Most share targets (WhatsApp included) don't show a caption next to
@@ -531,15 +523,50 @@ def patch_speakeasy_share_save(fragment: str) -> str:
         raise ValueError("speakeasy shareBtn/saveBtn listeners not found — upstream logic changed")
     fragment = fragment.replace(old_listeners, new_listeners)
 
-    old_copy_listener = """  document.getElementById("copyBtn").addEventListener("click", function () {
-    if (state.result) copyText(state.result.translatedText);
-  });"""
-    new_copy_listener = """  document.getElementById("copyBtn").addEventListener("click", function () {
-    if (state.result) copyText(state.result.translatedText + WORDLY_CREDIT);
-  });"""
-    if old_copy_listener not in fragment:
-        raise ValueError("speakeasy copyBtn listener not found — upstream logic changed")
-    fragment = fragment.replace(old_copy_listener, new_copy_listener)
+    return fragment
+
+
+def patch_speakeasy_credit_caption(fragment: str) -> str:
+    """Add a small "translated with Wordly" line directly under the
+    translated-text result, tight against it with no gap, where "Wordly"
+    itself is the (real, HTML) hyperlink — no separate URL text shown."""
+
+    old_result = """      <p class="label" id="targetLabel">Translation</p>
+      <p class="translated" id="translatedText"></p>
+      <p class="action-flash" id="actionFlash" hidden></p>"""
+    new_result = """      <p class="label" id="targetLabel">Translation</p>
+      <p class="translated" id="translatedText"></p>
+      <p class="wordly-credit">translated with <a href="https://tarkeshstack.github.io/wordly/" target="_blank" rel="noopener">Wordly</a></p>
+      <p class="action-flash" id="actionFlash" hidden></p>"""
+    if old_result not in fragment:
+        raise ValueError("speakeasy translatedText/actionFlash markup not found — upstream layout changed")
+    fragment = fragment.replace(old_result, new_result)
+
+    old_css = """  .result-card .translated {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 19px;
+  }"""
+    new_css = """  .result-card .translated {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 19px;
+  }
+  .wordly-credit {
+    margin: 0;
+    font-size: 10px;
+    color: var(--on-surface-variant);
+  }
+  .wordly-credit a {
+    color: var(--chakra-blue);
+    text-decoration: none;
+  }
+  .wordly-credit a:hover, .wordly-credit a:active { text-decoration: underline; }"""
+    if old_css not in fragment:
+        raise ValueError("speakeasy .translated CSS not found — upstream styles changed")
+    fragment = fragment.replace(old_css, new_css)
 
     return fragment
 
@@ -605,6 +632,7 @@ def patch_template(html: str, template_id: str) -> str:
     fragment = inject_after_head(fragment)
     if template_id == "speakeasy-src":
         fragment = patch_speakeasy_share_save(fragment)
+        fragment = patch_speakeasy_credit_caption(fragment)
     return before + fragment + after
 
 
