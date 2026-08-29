@@ -495,7 +495,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
   // (e.g. testing this tool standalone in a browser) falls back to the
   // original text-only share.
   function shareResult(originalText, translatedText, targetCode) {
-    var combined = translatedText + "\\n" + originalText;
+    var combined = translatedText + "\\n" + originalText + "\\n\\nTranslated with Wordly";
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "wordly-speech:share", text: combined, ttsText: translatedText, lang: targetCode }, "*");
       // Most share targets (WhatsApp included) don't show a caption next to
@@ -510,17 +510,23 @@ def patch_speakeasy_share_save(fragment: str) -> str:
         raise ValueError("speakeasy shareResult/saveAudio functions not found — upstream logic changed")
     fragment = fragment.replace(old_share_fn, new_share_fn)
 
-    old_listeners = """  document.getElementById("shareBtn").addEventListener("click", function () {
+    old_listeners = """  document.getElementById("copyBtn").addEventListener("click", function () {
+    if (state.result) copyText(state.result.translatedText);
+  });
+  document.getElementById("shareBtn").addEventListener("click", function () {
     if (state.result) shareResult(state.result.translatedText);
   });
   document.getElementById("saveBtn").addEventListener("click", function () {
     if (state.result) saveAudio(state.result.translatedText, state.result.targetCode);
   });"""
-    new_listeners = """  document.getElementById("shareBtn").addEventListener("click", function () {
+    new_listeners = """  document.getElementById("copyBtn").addEventListener("click", function () {
+    if (state.result) copyText(state.result.translatedText + "\\n\\nTranslated with Wordly");
+  });
+  document.getElementById("shareBtn").addEventListener("click", function () {
     if (state.result) shareResult(state.result.originalText, state.result.translatedText, state.result.targetCode);
   });"""
     if old_listeners not in fragment:
-        raise ValueError("speakeasy shareBtn/saveBtn listeners not found — upstream logic changed")
+        raise ValueError("speakeasy copyBtn/shareBtn/saveBtn listeners not found — upstream logic changed")
     fragment = fragment.replace(old_listeners, new_listeners)
 
     return fragment

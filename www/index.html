@@ -5550,7 +5550,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
   // (e.g. testing this tool standalone in a browser) falls back to the
   // original text-only share.
   function shareResult(originalText, translatedText, targetCode) {
-    var combined = translatedText + "\n" + originalText;
+    var combined = translatedText + "\n" + originalText + "\n\nTranslated with Wordly";
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "wordly-speech:share", text: combined, ttsText: translatedText, lang: targetCode }, "*");
       // Most share targets (WhatsApp included) don't show a caption next to
@@ -5563,7 +5563,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
   }
 
   document.getElementById("copyBtn").addEventListener("click", function () {
-    if (state.result) copyText(state.result.translatedText);
+    if (state.result) copyText(state.result.translatedText + "\n\nTranslated with Wordly");
   });
   document.getElementById("shareBtn").addEventListener("click", function () {
     if (state.result) shareResult(state.result.originalText, state.result.translatedText, state.result.targetCode);
