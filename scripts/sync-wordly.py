@@ -908,6 +908,44 @@ def patch_writing_guide_tolerance(fragment: str) -> str:
     return fragment
 
 
+def patch_writing_prev_btn(fragment: str) -> str:
+    """Add a "Previous" button next to the existing "Next" (skip) button in
+    the practice pad toolbar — there was a way to skip ahead but no way to
+    go back to the previous character."""
+
+    old_toolbar = """    <div class="pad-toolbar">
+      <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      </button>
+      <button class="pad-icon-btn" id="skip-btn" title="Next" aria-label="Next">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>"""
+    new_toolbar = """    <div class="pad-toolbar">
+      <button class="pad-icon-btn" id="prev-btn" title="Previous" aria-label="Previous">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
+      </button>
+      <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      </button>
+      <button class="pad-icon-btn" id="skip-btn" title="Next" aria-label="Next">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>"""
+    if old_toolbar not in fragment:
+        raise ValueError("writing pad-toolbar markup not found — upstream layout changed")
+    fragment = fragment.replace(old_toolbar, new_toolbar)
+
+    old_listener = """document.getElementById("skip-btn").onclick = function () { goToIndex(practice.index + 1); };"""
+    new_listener = """document.getElementById("prev-btn").onclick = function () { goToIndex(practice.index - 1); };
+  document.getElementById("skip-btn").onclick = function () { goToIndex(practice.index + 1); };"""
+    if old_listener not in fragment:
+        raise ValueError("writing skip-btn listener not found — upstream logic changed")
+    fragment = fragment.replace(old_listener, new_listener)
+
+    return fragment
+
+
 def inject_after_head(fragment: str) -> str:
     idx = fragment.find("<head>")
     if idx != -1:
@@ -933,6 +971,7 @@ def patch_template(html: str, template_id: str) -> str:
     elif template_id == "writing-src":
         fragment = patch_writing_persistent_back_btn(fragment)
         fragment = patch_writing_guide_tolerance(fragment)
+        fragment = patch_writing_prev_btn(fragment)
     elif template_id == "scanline-src":
         fragment = patch_scanline_ocr_confidence(fragment)
         fragment = patch_scanline_lang_prompt(fragment)
