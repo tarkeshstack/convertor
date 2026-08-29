@@ -892,12 +892,59 @@ def patch_writing_persistent_back_btn(fragment: str) -> str:
     return fragment
 
 
+def patch_writing_remove_practice_back_link(fragment: str) -> str:
+    """Remove the in-tool "‹ Back" link from the practice header — once the
+    persistent "back to Wordly" exit button (see
+    patch_writing_persistent_back_btn) is visible during practice too, this
+    second, differently-scoped back control sitting right next to it in the
+    same corner is redundant and visually clashes with it. The "Jump to a
+    character" modal (tap the title) and the new Previous/Next buttons cover
+    the same navigation need."""
+
+    old_header = """    <div class="practice-header">
+      <button class="back-link" id="practice-back-btn">‹ Back</button>
+      <button class="practice-header-center" id="practice-open-grid-btn">
+        <div class="practice-title" id="practice-title"></div>
+        <div class="practice-progress" id="practice-progress"></div>
+      </button>
+    </div>"""
+    new_header = """    <div class="practice-header">
+      <button class="practice-header-center" id="practice-open-grid-btn">
+        <div class="practice-title" id="practice-title"></div>
+        <div class="practice-progress" id="practice-progress"></div>
+      </button>
+    </div>"""
+    if old_header not in fragment:
+        raise ValueError("writing practice-header markup not found — upstream layout changed")
+    fragment = fragment.replace(old_header, new_header)
+
+    old_listener = """  document.getElementById("practice-back-btn").onclick = function () {
+    if (practice.autoAdvanceTimer) clearTimeout(practice.autoAdvanceTimer);
+    state.scores = loadScores();
+    showScreen("home-screen");
+    renderHome();
+  };
+  document.getElementById("practice-open-grid-btn").onclick = openGridModal;"""
+    new_listener = """  document.getElementById("practice-open-grid-btn").onclick = openGridModal;"""
+    if old_listener not in fragment:
+        raise ValueError("writing practice-back-btn listener not found — upstream logic changed")
+    fragment = fragment.replace(old_listener, new_listener)
+
+    return fragment
+
+
 def patch_writing_guide_tolerance(fragment: str) -> str:
-    """Tighten how far a traced point may stray from the gray guide stroke
-    and still count as "on it" — 22 template-space units (canvas is a 0-100
-    grid) was loose enough that noticeably off-guide tracing still scored as
-    a correct match. 14 keeps room for normal hand tremor without accepting
-    strokes that don't really follow the guide."""
+    """The tracing check only ever verified that most of what the user drew
+    landed somewhere near *some* point of the guide (borderToleranceAccuracy
+    — nearest-template-point distance per user point). For a guide made of
+    several separate strokes spread across the canvas, that's satisfied by
+    almost any scribble that happens to cross the guide's general area,
+    without the user ever actually tracing its path — confirmed by a
+    screenshot showing a handful of unrelated diagonal lines scored as
+    "Great job!". Add the symmetric check (how much of the *guide* the user's
+    strokes actually came near) and require both to pass, and tighten the
+    radius (22 -> 14, in the 0-100 template-space grid) — together these
+    catch strokes that touch the guide's neighborhood without following it."""
 
     old_radius = """  var BORDER_TOLERANCE_RADIUS = 22; // template-space units (canvas is 0-100); how far off the guide line a point may land"""
     new_radius = """  var BORDER_TOLERANCE_RADIUS = 14; // template-space units (canvas is 0-100); how far off the guide line a point may land"""
@@ -905,36 +952,149 @@ def patch_writing_guide_tolerance(fragment: str) -> str:
         raise ValueError("writing BORDER_TOLERANCE_RADIUS not found — upstream logic changed")
     fragment = fragment.replace(old_radius, new_radius)
 
+    old_accuracy_fn = """  function borderToleranceAccuracy(userStrokes, templateStrokes, radius) {
+    var userPoints = flattenStrokes(userStrokes);
+    var templatePoints = flattenStrokes(templateStrokes);
+    if (userPoints.length === 0 || templatePoints.length === 0) return 0;
+    var within = 0;
+    for (var i = 0; i < userPoints.length; i++) {
+      var u = userPoints[i];
+      var best = Infinity;
+      for (var j = 0; j < templatePoints.length; j++) {
+        var t = templatePoints[j];
+        var d = Math.hypot(u.x - t.x, u.y - t.y);
+        if (d < best) best = d;
+      }
+      if (best <= radius) within++;
+    }
+    return within / userPoints.length;
+  }"""
+    new_accuracy_fn = """  function borderToleranceAccuracy(userStrokes, templateStrokes, radius) {
+    var userPoints = flattenStrokes(userStrokes);
+    var templatePoints = flattenStrokes(templateStrokes);
+    if (userPoints.length === 0 || templatePoints.length === 0) return 0;
+    var within = 0;
+    for (var i = 0; i < userPoints.length; i++) {
+      var u = userPoints[i];
+      var best = Infinity;
+      for (var j = 0; j < templatePoints.length; j++) {
+        var t = templatePoints[j];
+        var d = Math.hypot(u.x - t.x, u.y - t.y);
+        if (d < best) best = d;
+      }
+      if (best <= radius) within++;
+    }
+    return within / userPoints.length;
+  }
+
+  // Symmetric to borderToleranceAccuracy: how much of the *guide* was
+  // actually come near, rather than how much of what was drawn is near the
+  // guide. A precise-but-tiny scribble in one corner of a multi-stroke
+  // guide can pass the accuracy check alone without ever tracing most of
+  // the character — this catches that.
+  function borderToleranceCoverage(userStrokes, templateStrokes, radius) {
+    var userPoints = flattenStrokes(userStrokes);
+    var templatePoints = flattenStrokes(templateStrokes);
+    if (userPoints.length === 0 || templatePoints.length === 0) return 0;
+    var covered = 0;
+    for (var i = 0; i < templatePoints.length; i++) {
+      var t = templatePoints[i];
+      var best = Infinity;
+      for (var j = 0; j < userPoints.length; j++) {
+        var u = userPoints[j];
+        var d = Math.hypot(t.x - u.x, t.y - u.y);
+        if (d < best) best = d;
+      }
+      if (best <= radius) covered++;
+    }
+    return covered / templatePoints.length;
+  }"""
+    if old_accuracy_fn not in fragment:
+        raise ValueError("writing borderToleranceAccuracy not found — upstream logic changed")
+    fragment = fragment.replace(old_accuracy_fn, new_accuracy_fn)
+
+    old_score_fn = """    var radius = BORDER_TOLERANCE_RADIUS * (0.5 + tolerance);
+    var accuracy = borderToleranceAccuracy(userStrokes, templateStrokes, radius);
+
+    return {"""
+    new_score_fn = """    var radius = BORDER_TOLERANCE_RADIUS * (0.5 + tolerance);
+    var precision = borderToleranceAccuracy(userStrokes, templateStrokes, radius);
+    var coverage = borderToleranceCoverage(userStrokes, templateStrokes, radius);
+    var accuracy = Math.min(precision, coverage);
+
+    return {"""
+    if old_score_fn not in fragment:
+        raise ValueError("writing scoreAttempt radius/accuracy lines not found — upstream logic changed")
+    fragment = fragment.replace(old_score_fn, new_score_fn)
+
     return fragment
 
 
 def patch_writing_prev_btn(fragment: str) -> str:
-    """Add a "Previous" button next to the existing "Next" (skip) button in
-    the practice pad toolbar — there was a way to skip ahead but no way to
-    go back to the previous character."""
+    """Add a "Previous" button to go back a character, and move it and the
+    existing "Next" (skip) button to float over the left/right corners of
+    the writing pad itself, leaving the "Redo" (clear) button alone and
+    centered in the toolbar row above."""
 
-    old_toolbar = """    <div class="pad-toolbar">
+    old_toolbar_and_pad = """    <div class="pad-toolbar">
       <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
       </button>
       <button class="pad-icon-btn" id="skip-btn" title="Next" aria-label="Next">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
       </button>
+    </div>
+
+    <div class="pad-wrapper">
+      <canvas id="pad-canvas"></canvas>
     </div>"""
-    new_toolbar = """    <div class="pad-toolbar">
-      <button class="pad-icon-btn" id="prev-btn" title="Previous" aria-label="Previous">
+    new_toolbar_and_pad = """    <div class="pad-toolbar">
+      <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      </button>
+    </div>
+
+    <div class="pad-wrapper">
+      <button class="pad-icon-btn pad-corner-btn pad-corner-left" id="prev-btn" title="Previous" aria-label="Previous">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
       </button>
-      <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
-      </button>
-      <button class="pad-icon-btn" id="skip-btn" title="Next" aria-label="Next">
+      <canvas id="pad-canvas"></canvas>
+      <button class="pad-icon-btn pad-corner-btn pad-corner-right" id="skip-btn" title="Next" aria-label="Next">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
       </button>
     </div>"""
-    if old_toolbar not in fragment:
-        raise ValueError("writing pad-toolbar markup not found — upstream layout changed")
-    fragment = fragment.replace(old_toolbar, new_toolbar)
+    if old_toolbar_and_pad not in fragment:
+        raise ValueError("writing pad-toolbar/pad-wrapper markup not found — upstream layout changed")
+    fragment = fragment.replace(old_toolbar_and_pad, new_toolbar_and_pad)
+
+    old_css = """  .pad-wrapper { display: flex; justify-content: center; }"""
+    new_css = """  .pad-wrapper { display: flex; justify-content: center; position: relative; }
+  .pad-corner-btn { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; }
+  .pad-corner-btn.pad-corner-left { left: -6px; }
+  .pad-corner-btn.pad-corner-right { right: -6px; }"""
+    if old_css not in fragment:
+        raise ValueError("writing .pad-wrapper CSS not found — upstream styles changed")
+    fragment = fragment.replace(old_css, new_css)
+
+    old_toolbar_css = """  .pad-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    max-width: 380px;
+    margin: 0 auto 8px;
+    padding: 0 4px;
+  }"""
+    new_toolbar_css = """  .pad-toolbar {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    max-width: 380px;
+    margin: 0 auto 8px;
+    padding: 0 4px;
+  }"""
+    if old_toolbar_css not in fragment:
+        raise ValueError("writing .pad-toolbar CSS not found — upstream styles changed")
+    fragment = fragment.replace(old_toolbar_css, new_toolbar_css)
 
     old_listener = """document.getElementById("skip-btn").onclick = function () { goToIndex(practice.index + 1); };"""
     new_listener = """document.getElementById("prev-btn").onclick = function () { goToIndex(practice.index - 1); };
@@ -970,6 +1130,7 @@ def patch_template(html: str, template_id: str) -> str:
         fragment = patch_speakeasy_credit_caption(fragment)
     elif template_id == "writing-src":
         fragment = patch_writing_persistent_back_btn(fragment)
+        fragment = patch_writing_remove_practice_back_link(fragment)
         fragment = patch_writing_guide_tolerance(fragment)
         fragment = patch_writing_prev_btn(fragment)
     elif template_id == "scanline-src":
