@@ -858,6 +858,56 @@ shareBtn.addEventListener('click', ()=>{
     return fragment
 
 
+def patch_writing_persistent_back_btn(fragment: str) -> str:
+    """The "back to Wordly" exit button lives inside #home-screen, which is
+    display:none whenever #practice-screen is active — so once you're
+    actually practicing there's no on-screen way to exit the tool (only the
+    in-tool "‹ Back" link, which returns to the character grid, not to
+    Wordly). Move the button to be a direct child of #app instead, so it
+    stays rendered (and, thanks to its own position:absolute + z-index,
+    visually anchored to the same top-left corner) across every screen."""
+
+    old_home_open = """<div id="app">
+  <!-- ============= HOME ============= -->
+  <div id="home-screen" class="screen active">"""
+    new_home_open = """<div id="app">
+  <button class="wordly-back-btn" id="wordly-back-btn" title="Back to Wordly" aria-label="Back to Wordly">
+    <svg width="54" height="26" viewBox="0 0 30 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M25 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+  </button>
+  <!-- ============= HOME ============= -->
+  <div id="home-screen" class="screen active">"""
+    if old_home_open not in fragment:
+        raise ValueError("writing #app/#home-screen markup not found — upstream layout changed")
+    fragment = fragment.replace(old_home_open, new_home_open)
+
+    old_inline_btn = """    <button class="wordly-back-btn" id="wordly-back-btn" title="Back to Wordly" aria-label="Back to Wordly">
+      <svg width="54" height="26" viewBox="0 0 30 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M25 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+    </button>
+    <div id="home-content">"""
+    new_inline_btn = """    <div id="home-content">"""
+    if old_inline_btn not in fragment:
+        raise ValueError("writing inline wordly-back-btn not found — upstream layout changed")
+    fragment = fragment.replace(old_inline_btn, new_inline_btn)
+
+    return fragment
+
+
+def patch_writing_guide_tolerance(fragment: str) -> str:
+    """Tighten how far a traced point may stray from the gray guide stroke
+    and still count as "on it" — 22 template-space units (canvas is a 0-100
+    grid) was loose enough that noticeably off-guide tracing still scored as
+    a correct match. 14 keeps room for normal hand tremor without accepting
+    strokes that don't really follow the guide."""
+
+    old_radius = """  var BORDER_TOLERANCE_RADIUS = 22; // template-space units (canvas is 0-100); how far off the guide line a point may land"""
+    new_radius = """  var BORDER_TOLERANCE_RADIUS = 14; // template-space units (canvas is 0-100); how far off the guide line a point may land"""
+    if old_radius not in fragment:
+        raise ValueError("writing BORDER_TOLERANCE_RADIUS not found — upstream logic changed")
+    fragment = fragment.replace(old_radius, new_radius)
+
+    return fragment
+
+
 def inject_after_head(fragment: str) -> str:
     idx = fragment.find("<head>")
     if idx != -1:
@@ -880,6 +930,9 @@ def patch_template(html: str, template_id: str) -> str:
     if template_id == "speakeasy-src":
         fragment = patch_speakeasy_share_save(fragment)
         fragment = patch_speakeasy_credit_caption(fragment)
+    elif template_id == "writing-src":
+        fragment = patch_writing_persistent_back_btn(fragment)
+        fragment = patch_writing_guide_tolerance(fragment)
     elif template_id == "scanline-src":
         fragment = patch_scanline_ocr_confidence(fragment)
         fragment = patch_scanline_lang_prompt(fragment)
