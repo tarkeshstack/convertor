@@ -484,7 +484,7 @@ def patch_speakeasy_share_save(fragment: str) -> str:
   // clipboard alongside the voice note. The URL is plain text rather than
   // an HTML link since that's all a share/clipboard payload can carry, but
   // messaging apps auto-linkify it into a clickable link on their end.
-  var WORDLY_CREDIT = "\\n\\n— translated with Wordly · https://github.com/tarkeshstack/wordly";
+  var WORDLY_CREDIT = "\\n\\n— translated with Wordly · https://tarkeshstack.github.io/wordly/";
 
   function shareTextOnly(text) {
     if (navigator.share) {
@@ -544,6 +544,47 @@ def patch_speakeasy_share_save(fragment: str) -> str:
     return fragment
 
 
+def patch_home_title_link(html: str) -> str:
+    """Turn the home screen's "Wordly" title into a link to the live site —
+    styled blue like a normal hyperlink, with no raw URL shown next to it.
+    External links already open in the system browser by default (Capacitor's
+    Bridge.launchIntent fires an ACTION_VIEW intent for any host that isn't
+    the app's own), so no extra wiring is needed beyond the anchor tag."""
+
+    old_css = """  h1{
+    font-family:'Fraunces', serif;
+    font-weight: 500;
+    font-size: clamp(32px, 5.5vw, 46px);
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+  h1 em{ font-style: italic; font-weight: 500; color: var(--hindi); }"""
+    new_css = """  h1{
+    font-family:'Fraunces', serif;
+    font-weight: 500;
+    font-size: clamp(32px, 5.5vw, 46px);
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+  h1 em{ font-style: italic; font-weight: 500; color: var(--hindi); }
+  h1 a.wordly-home-link{ color: var(--select-blue); text-decoration: none; }
+  h1 a.wordly-home-link:hover, h1 a.wordly-home-link:active{ text-decoration: underline; }
+  h1 a.wordly-home-link em{ color: inherit; }"""
+    if old_css not in html:
+        raise ValueError("h1 CSS block not found — upstream styles changed")
+    html = html.replace(old_css, new_css, 1)
+
+    old_h1 = "  <h1>Word<em>ly</em></h1>"
+    new_h1 = '  <h1><a href="https://tarkeshstack.github.io/wordly/" target="_blank" rel="noopener" class="wordly-home-link">Word<em>ly</em></a></h1>'
+    if old_h1 not in html:
+        raise ValueError("home h1 markup not found — upstream layout changed")
+    html = html.replace(old_h1, new_h1, 1)
+
+    return html
+
+
 def inject_after_head(fragment: str) -> str:
     idx = fragment.find("<head>")
     if idx != -1:
@@ -573,6 +614,8 @@ def main():
         sys.exit(1)
     src_dir = Path(sys.argv[1])
     src_html = (src_dir / "index.html").read_text(encoding="utf-8")
+
+    src_html = patch_home_title_link(src_html)
 
     for template_id in ("speakeasy-src", "writing-src"):
         src_html = patch_template(src_html, template_id)

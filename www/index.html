@@ -569,6 +569,9 @@
     color: var(--ink);
   }
   h1 em{ font-style: italic; font-weight: 500; color: var(--hindi); }
+  h1 a.wordly-home-link{ color: var(--select-blue); text-decoration: none; }
+  h1 a.wordly-home-link:hover, h1 a.wordly-home-link:active{ text-decoration: underline; }
+  h1 a.wordly-home-link em{ color: inherit; }
   header p{
     color: var(--sub);
     font-size: 15px;
@@ -1251,7 +1254,7 @@
       </a>
     </div>
   </div>
-  <h1>Word<em>ly</em></h1>
+  <h1><a href="https://tarkeshstack.github.io/wordly/" target="_blank" rel="noopener" class="wordly-home-link">Word<em>ly</em></a></h1>
   <p>Your Language Assistant</p>
 </header>
 
@@ -5528,7 +5531,7 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
   // clipboard alongside the voice note. The URL is plain text rather than
   // an HTML link since that's all a share/clipboard payload can carry, but
   // messaging apps auto-linkify it into a clickable link on their end.
-  var WORDLY_CREDIT = "\n\n— translated with Wordly · https://github.com/tarkeshstack/wordly";
+  var WORDLY_CREDIT = "\n\n— translated with Wordly · https://tarkeshstack.github.io/wordly/";
 
   function shareTextOnly(text) {
     if (navigator.share) {
