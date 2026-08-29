@@ -969,20 +969,47 @@ def patch_writing_guide_tolerance(fragment: str) -> str:
     }
     return within / userPoints.length;
   }"""
-    new_accuracy_fn = """  function borderToleranceAccuracy(userStrokes, templateStrokes, radius) {
-    var userPoints = flattenStrokes(userStrokes);
-    var templatePoints = flattenStrokes(templateStrokes);
-    if (userPoints.length === 0 || templatePoints.length === 0) return 0;
-    var within = 0;
-    for (var i = 0; i < userPoints.length; i++) {
-      var u = userPoints[i];
-      var best = Infinity;
-      for (var j = 0; j < templatePoints.length; j++) {
-        var t = templatePoints[j];
-        var d = Math.hypot(u.x - t.x, u.y - t.y);
+    new_accuracy_fn = """  function pointToSegmentDistance(p, a, b) {
+    var dx = b.x - a.x, dy = b.y - a.y;
+    var lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    var t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    var projX = a.x + t * dx, projY = a.y + t * dy;
+    return Math.hypot(p.x - projX, p.y - projY);
+  }
+
+  // Distance from a point to the nearest *line segment* of a stroke set,
+  // not just its nearest recorded point. Character templates are typically
+  // authored as a handful of sparse anchor points per stroke (not a dense
+  // freehand recording), so comparing against isolated template points left
+  // real gaps along the letter's actual path — a perfectly-traced point
+  // sitting between two sparse template vertices could read as "far from
+  // the guide" even though it's sitting right on the line between them.
+  function nearestSegmentDistance(point, strokes) {
+    var best = Infinity;
+    for (var i = 0; i < strokes.length; i++) {
+      var stroke = strokes[i];
+      if (stroke.length === 0) continue;
+      if (stroke.length === 1) {
+        var d0 = Math.hypot(point.x - stroke[0].x, point.y - stroke[0].y);
+        if (d0 < best) best = d0;
+        continue;
+      }
+      for (var j = 1; j < stroke.length; j++) {
+        var d = pointToSegmentDistance(point, stroke[j - 1], stroke[j]);
         if (d < best) best = d;
       }
-      if (best <= radius) within++;
+    }
+    return best;
+  }
+
+  function borderToleranceAccuracy(userStrokes, templateStrokes, radius) {
+    var userPoints = flattenStrokes(userStrokes);
+    if (userPoints.length === 0 || templateStrokes.length === 0) return 0;
+    var within = 0;
+    for (var i = 0; i < userPoints.length; i++) {
+      if (nearestSegmentDistance(userPoints[i], templateStrokes) <= radius) within++;
     }
     return within / userPoints.length;
   }
@@ -993,19 +1020,11 @@ def patch_writing_guide_tolerance(fragment: str) -> str:
   // guide can pass the accuracy check alone without ever tracing most of
   // the character — this catches that.
   function borderToleranceCoverage(userStrokes, templateStrokes, radius) {
-    var userPoints = flattenStrokes(userStrokes);
     var templatePoints = flattenStrokes(templateStrokes);
-    if (userPoints.length === 0 || templatePoints.length === 0) return 0;
+    if (templatePoints.length === 0 || userStrokes.length === 0) return 0;
     var covered = 0;
     for (var i = 0; i < templatePoints.length; i++) {
-      var t = templatePoints[i];
-      var best = Infinity;
-      for (var j = 0; j < userPoints.length; j++) {
-        var u = userPoints[j];
-        var d = Math.hypot(t.x - u.x, t.y - u.y);
-        if (d < best) best = d;
-      }
-      if (best <= radius) covered++;
+      if (nearestSegmentDistance(templatePoints[i], userStrokes) <= radius) covered++;
     }
     return covered / templatePoints.length;
   }"""
