@@ -182,6 +182,7 @@ NATIVE_BRIDGE_SCRIPT = """
       this.lang = ''; this.interimResults = true; this.continuous = false; this.maxAlternatives = 1;
       this.onresult = null; this.onerror = null; this.onend = null;
       this._active = false;
+      this._userStopped = false;
     }
     NativeRecognition.prototype.start = function(){
       const self = this;
@@ -191,14 +192,14 @@ NATIVE_BRIDGE_SCRIPT = """
         return;
       }
       self._active = true;
-      CapSTT.requestPermissions().then(function(perm){
+      self._userStopped = false;
+
+      // A pass that hears literally nothing usually just means the recognizer's
+      // end-of-speech detector never triggered on quiet/whispered audio, not
+      // that there was truly nothing to hear. Give it one silent second try
+      // (no onerror/onend in between) before actually giving up.
+      function attempt(retriesLeft){
         if(!self._active) return;
-        if(perm && perm.speechRecognition && perm.speechRecognition !== 'granted'){
-          self._active = false;
-          if(typeof self.onerror === 'function') self.onerror({ error: 'not-allowed' });
-          if(typeof self.onend === 'function') self.onend();
-          return;
-        }
 
         let finished = false;
         let gotResult = false;
@@ -215,8 +216,12 @@ NATIVE_BRIDGE_SCRIPT = """
         function finish(errorCode){
           if(finished || !self._active) return;
           finished = true;
-          self._active = false;
           cleanup();
+          if(errorCode === 'no-speech' && retriesLeft > 0 && !self._userStopped){
+            attempt(retriesLeft - 1);
+            return;
+          }
+          self._active = false;
           if(errorCode && typeof self.onerror === 'function') self.onerror({ error: errorCode });
           if(typeof self.onend === 'function') self.onend();
         }
@@ -256,6 +261,17 @@ NATIVE_BRIDGE_SCRIPT = """
             const code = /permission|denied/i.test(msg) ? 'not-allowed' : (/network/i.test(msg) ? 'network' : 'no-speech');
             finish(code);
           });
+      }
+
+      CapSTT.requestPermissions().then(function(perm){
+        if(!self._active) return;
+        if(perm && perm.speechRecognition && perm.speechRecognition !== 'granted'){
+          self._active = false;
+          if(typeof self.onerror === 'function') self.onerror({ error: 'not-allowed' });
+          if(typeof self.onend === 'function') self.onend();
+          return;
+        }
+        attempt(1);
       }).catch(function(){
         self._active = false;
         if(typeof self.onerror === 'function') self.onerror({ error: 'not-allowed' });
@@ -268,7 +284,9 @@ NATIVE_BRIDGE_SCRIPT = """
       // above (it bails out once _active is false), so onend() would never
       // fire and the UI would stay stuck showing "listening". Let the normal
       // finish() flow (event or timeout) clear it once recognition actually
-      // stops.
+      // stops. _userStopped just tells that flow not to silently retry a
+      // "no speech heard" outcome the user deliberately cut short.
+      self._userStopped = true;
       if(CapSTT) CapSTT.stop().catch(function(){});
     };
 

@@ -4,6 +4,7 @@
   "description": "Wordly — English to Indian Languages dictionary and live translator",
   "private": true,
   "scripts": {
+    "postinstall": "patch-package",
     "sync": "cap sync",
     "open:android": "cap open android",
     "build:android": "cd android && ./gradlew assembleDebug"
@@ -19,6 +20,7 @@
     "@capacitor/status-bar": "^7.0.3"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.4.3"
+    "@capacitor/cli": "^7.4.3",
+    "patch-package": "^8.0.1"
   }
 }
