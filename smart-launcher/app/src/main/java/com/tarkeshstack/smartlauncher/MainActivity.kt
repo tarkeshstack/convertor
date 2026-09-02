@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
             SmartAppLauncherTheme {
                 val state by viewModel.uiState.collectAsState()
                 var screen by remember { mutableStateOf(Screen.Search) }
+                var browseQuery by remember { mutableStateOf<String?>(null) }
 
                 // A link shared in from another app should take you straight to where
                 // you finish turning it into a command, not leave you on the search screen.
@@ -124,10 +125,14 @@ class MainActivity : ComponentActivity() {
                             viewModel.onLinkCaptured(link)
                             screen = Screen.Commands
                         },
-                        onBrowseForLink = { screen = Screen.Browse },
+                        onBrowseForLink = { query ->
+                            browseQuery = query
+                            screen = Screen.Browse
+                        },
                         onBack = { screen = Screen.Commands },
                     )
                     Screen.Browse -> BrowseForLinkScreen(
+                        initialQuery = browseQuery,
                         onCapture = { url ->
                             viewModel.onLinkCaptured(CapturedLink(uri = url, sourcePackage = null))
                             screen = Screen.Commands

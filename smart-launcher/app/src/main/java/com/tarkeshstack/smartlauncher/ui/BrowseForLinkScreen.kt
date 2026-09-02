@@ -41,8 +41,14 @@ import androidx.compose.ui.viewinterop.AndroidView
 fun BrowseForLinkScreen(
     onCapture: (String) -> Unit,
     onBack: () -> Unit,
+    /** When set (e.g. an app's name), starts already searching for that instead of a
+     *  blank Google homepage — so picking an app elsewhere in the app lands you here
+     *  already looking for its site, without ever leaving Smart Launcher. */
+    initialQuery: String? = null,
 ) {
-    var addressBarText by remember { mutableStateOf("https://www.google.com") }
+    var addressBarText by remember {
+        mutableStateOf(initialQuery?.let { "$it official site" } ?: "https://www.google.com")
+    }
     var webView by remember { mutableStateOf<WebView?>(null) }
 
     Scaffold(
