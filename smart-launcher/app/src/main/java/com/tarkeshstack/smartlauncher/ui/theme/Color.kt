@@ -19,11 +19,7 @@ val LauncherOnSecondaryLight = Color(0xFFFFFFFF)
 val LauncherSecondaryDark = Color(0xFF52DBC0)
 val LauncherOnSecondaryDark = Color(0xFF00382E)
 
-// Light-blue gradient used behind the search screen (light theme only).
-val LauncherGradientTopLight = Color(0xFFDCEEFF)
-val LauncherGradientBottomLight = Color(0xFFF6FBFF)
-
-val LauncherBackgroundLight = Color(0xFFFAFAFE)
+val LauncherBackgroundLight = Color(0xFFFFFFFF)
 val LauncherSurfaceLight = Color(0xFFFFFFFF)
 val LauncherSurfaceVariantLight = Color(0xFFE3E1F5)
 val LauncherOnSurfaceLight = Color(0xFF1B1B23)

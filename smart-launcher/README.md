@@ -31,42 +31,23 @@ you get a clear "X isn't installed" message instead of a crash or a silent no-op
 ## Layout
 
 The search bar sits roughly mid-screen (with a short greeting when idle) rather than
-jammed under the header, with the app list filling the rest below it; the settings
-gear and the conversation-mode speaker icon stay up in the header. All settings —
-including the two voice toggles below — live on the Settings screen (gear icon),
-whose form is now one continuously scrollable list so a field near the bottom (e.g.
-the deep-link command's last two fields) scrolls up above the keyboard instead of
-being hidden behind it.
+jammed under the header, with the app list filling the rest below it, on a plain
+white background. The header carries just one icon — a small link icon that opens
+"Your commands," the deep-link shortcut manager (see below).
 
-## Conversation mode
+## Voice replies
 
 Every turn — what you typed or said, and what the app did about it — is logged as a
 running transcript on the search screen ("Opened Amazon", "Booked a ride to airport",
-"Uber isn't installed", ...). That's on by default and needs nothing extra.
+"Uber isn't installed", ...), always on, no setting to find.
 
-Tap the speaker icon in the header to turn on spoken replies too: the app reads its
-response aloud via Android's text-to-speech engine, and — only for a turn you
-started by voice, never by typing — automatically re-arms the mic afterward so you
-can keep going without tapping it again each time. It's this app's own
-speech-to-text feeding straight back into another turn, not literally another app's
-voice-search button (see "Why 'audio search inside another app' works this way"
-below).
-
-### "Hey Buddy" wake word
-
-Turn it on in Settings (gear icon → Voice & Conversation). While enabled, the app
-passively listens in short cycles for "hey buddy" — say it alone and the app
-prompts "Yes?" and then listens for your command; say it with the command attached
-("hey buddy, open uber") and it acts immediately, no pause needed.
-
-This **only works while Smart Launcher is open in the foreground.** Android gives
-third-party apps no supported way to listen for a wake phrase, or launch themselves,
-while backgrounded — that requires a permanent foreground-service notification (a
-real battery and privacy cost), and even then reliably bringing the app to the front
-from the background is inconsistent across OEMs. So this pauses the instant you
-leave the app and resumes the moment you come back, exactly like conversation mode's
-relisten — it's the same passive-listening mechanism, just triggered by a phrase
-instead of a tap.
+For a turn you *spoke* rather than typed, the app also reads its response aloud via
+Android's text-to-speech engine and automatically re-arms the mic afterward, so a
+hands-free back-and-forth just keeps going without tapping the mic again each time —
+this is on by default, not a toggle. Typing never triggers a spoken reply. It's this
+app's own speech-to-text feeding straight back into another turn, not literally
+another app's voice-search button (see "Why 'audio search inside another app' works
+this way" below).
 
 ### Why "audio search inside another app" works this way
 
@@ -78,7 +59,7 @@ exist across versions, and can crash — not something this app does. What it do
 instead, and what actually delivers "say it once, land in results": this app's own
 mic transcribes your speech, then opens the target app already acting on it (e.g.
 saying "play lofi beats on youtube" opens YouTube already searching that). Combined
-with conversation mode's auto-relisten, that's a full spoken back-and-forth without
+with the mic auto-relistening after a spoken reply, that's a full spoken back-and-forth without
 ever needing the target app's own mic icon.
 
 ### What reading another app's on-screen content would take
@@ -105,13 +86,11 @@ stored or sent anywhere by this app itself.
 
 ## Custom commands
 
-Tap the gear icon to open the command manager and define your own trigger phrases.
-Each one is either:
-
-- **Open an app** — pick any installed app; typing/saying the phrase just launches it.
-- **Deep link / URI** — give a URI (e.g. `myapp://some/screen`) and, optionally, the
-  target app's package name to open it in specifically. Saying/typing the phrase
-  fires `ACTION_VIEW` on that URI.
+Tap the link icon in the header to open "Your commands," then the **+** in its top
+bar to define a trigger phrase. Commands are deep links only — a plain app name
+already opens that app on its own (fuzzy search on the home screen), so that's not
+a separate choice you make here. Saying/typing the phrase fires `ACTION_VIEW` on the
+saved URI, optionally restricted to a specific target app's package.
 
 Custom commands are checked before the built-in parser, so your phrase wins even if
 it overlaps with a recognized pattern. They're stored locally in a JSON file in the
@@ -120,8 +99,8 @@ device.
 
 ### Finding a deep link without knowing the syntax
 
-The "Deep link / URI" form has four ways to fill in the URI field without hand-writing
-one — none of them require the target app to support anything in particular:
+The form has three ways to fill in the URI field without hand-writing one — none of
+them require the target app to support anything in particular:
 
 - **Share it in** — open the app you want, find the exact item/screen, tap its Share
   button, and pick "Smart Launcher" from the share sheet. This app registers as a
@@ -130,16 +109,16 @@ one — none of them require the target app to support anything in particular:
   when the sharing app supplies it — the source app's package too, then drops you
   straight into the command form with both pre-filled. Only works for apps that
   offer *some* Share/Copy-Link action.
+- **Popular for your apps** — a curated list of publicly documented link patterns
+  (YouTube/Spotify/Amazon search, Instagram/X profiles, Telegram, Netflix, Google
+  Maps, the Play Store), filtered down to only the apps you actually have
+  installed — no point being offered a Spotify search link on a phone without
+  Spotify.
 - **Browse for a link** — a built-in mini browser (`ui/BrowseForLinkScreen.kt`, needs
   the `INTERNET` permission, used only when you're actively in this screen) for when
   an app has no Share option at all: navigate to the app's *website* version of what
   you want and tap "Use this page's link." Since most apps' websites use the same
   URL as their App Link, this often opens straight back into the native app too.
-- **Paste from clipboard** — for apps whose "Copy Link" doesn't go through Android's
-  share sheet: copy the link there, then tap this button here.
-- **Suggestions** — a curated list of publicly documented link patterns for common
-  apps (YouTube/Spotify/Amazon search, Instagram/X profiles, Telegram, Netflix,
-  Google Maps, the Play Store).
 
 Suggestions and captured links can carry a `REPLACE_ME` placeholder for the part
 that's specific to what you want. You never edit that into the link text yourself —
@@ -150,8 +129,8 @@ filled in.
 
 There's no step-recorder here: this app can't record and replay taps inside
 other apps (that needs Android's Accessibility Service, a much heavier and more
-fragile mechanism), so a custom command can only open an app or fire a deep link,
-not drive a multi-screen flow.
+fragile mechanism), so a custom command can only fire a deep link, not drive a
+multi-screen flow.
 
 ## Why it can't "log you into" an app
 
@@ -177,16 +156,14 @@ in on your device — logged in, if you're already logged in there.
   app's website when it has no Share option.
 - `voice/VoiceInputController.kt` — wraps Android's `SpeechRecognizer` for the mic
   button.
-- `voice/VoiceOutputController.kt` — wraps Android's `TextToSpeech` for conversation
-  mode's spoken replies.
-- `voice/WakePhraseDetector.kt` — matches "hey buddy" inside transcribed speech.
+- `voice/VoiceOutputController.kt` — wraps Android's `TextToSpeech` for voice replies.
 - `model/Conversation.kt` — the transcript entry and speech-request types.
 - `ui/SearchScreen.kt` — header, centered search box + mic, quick-action card,
   conversation transcript, app list.
-- `ui/CommandManagerScreen.kt` — voice settings + add/list/delete custom commands,
-  as one scrollable list.
-- `ui/AppPickerDialog.kt` — searchable modal app list, used for "Open an app" and the
-  deep-link command's target-app field.
+- `ui/CommandManagerScreen.kt` — "Your commands": add/list/delete deep-link
+  commands, as one scrollable list, add form collapsed behind a small **+**.
+- `ui/AppPickerDialog.kt` — searchable modal app list, used for the deep-link
+  command's target-app field.
 
 ## Requirements
 
@@ -216,8 +193,7 @@ Maven repo where the sandbox that scaffolded this project didn't.
 - `READ_CONTACTS` — requested at runtime, only when you type `call <name>` or
   `message <name>` with a name rather than a number. Denying it just means you'll
   need to type the phone number directly.
-- `RECORD_AUDIO` — requested at runtime, when you tap the mic icon or turn on the
-  "Hey Buddy" wake word in Settings.
+- `RECORD_AUDIO` — requested at runtime, the first time you tap the mic icon.
 - `INTERNET` — install-time only, used exclusively by the "Browse for a link" mini
   browser in the command builder; the app makes no other network calls.
 

@@ -1,9 +1,7 @@
 package com.tarkeshstack.smartlauncher.ui
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,13 +25,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,7 +53,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
@@ -69,8 +64,6 @@ import com.tarkeshstack.smartlauncher.UiState
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.ConversationEntry
-import com.tarkeshstack.smartlauncher.ui.theme.LauncherGradientBottomLight
-import com.tarkeshstack.smartlauncher.ui.theme.LauncherGradientTopLight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,47 +109,22 @@ fun SearchScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = viewModel::toggleConversationMode) {
-                        Icon(
-                            if (state.speechEnabled) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
-                            contentDescription = if (state.speechEnabled) {
-                                "Conversation mode on — turn off spoken replies"
-                            } else {
-                                "Conversation mode off — turn on spoken replies"
-                            },
-                            tint = if (state.speechEnabled) {
-                                MaterialTheme.colorScheme.secondary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
                     IconButton(onClick = onOpenCommandManager) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Manage custom commands")
+                        Icon(Icons.Filled.Link, contentDescription = "Your commands")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
+                    containerColor = MaterialTheme.colorScheme.background,
                 ),
             )
         },
-        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
     ) { padding ->
         val isIdle = state.query.isBlank() && state.conversationLog.isEmpty() && state.command == null
-        val isDark = isSystemInDarkTheme()
-        val backgroundBrush = remember(isDark) {
-            if (isDark) {
-                Brush.verticalGradient(listOf(Color(0xFF0F0F14), Color(0xFF0F0F14)))
-            } else {
-                Brush.verticalGradient(listOf(LauncherGradientTopLight, LauncherGradientBottomLight))
-            }
-        }
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(backgroundBrush)
                 .padding(padding),
         ) {
             // The search bar sits roughly mid-screen rather than jammed under the header. This

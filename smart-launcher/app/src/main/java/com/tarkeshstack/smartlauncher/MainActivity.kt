@@ -24,12 +24,10 @@ import com.tarkeshstack.smartlauncher.ui.SearchScreen
 import com.tarkeshstack.smartlauncher.ui.theme.SmartAppLauncherTheme
 import com.tarkeshstack.smartlauncher.voice.VoiceInputController
 import com.tarkeshstack.smartlauncher.voice.VoiceOutputController
-import com.tarkeshstack.smartlauncher.voice.WakePhraseDetector
 
 private enum class Screen { Search, Commands, Browse }
 
 private const val RELISTEN_DELAY_MS = 350L
-private const val WAKE_RETRY_DELAY_MS = 400L
 private const val PAUSE_STOP_GRACE_MS = 1200L
 
 class MainActivity : ComponentActivity() {
@@ -39,14 +37,9 @@ class MainActivity : ComponentActivity() {
     private var voiceOutputController: VoiceOutputController? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    /** True while the current listening session is a passive scan for "hey buddy" rather
-     *  than actively taking down a real command. */
-    private var isWakeCycle = false
-
-    /** Snapshot taken at the moment of onPause, so onResume can put listening back the way
-     *  it was — whether that was a wake scan or an active command session. */
+    /** Snapshot taken at the moment of onPause, so onResume can put an in-progress
+     *  listening session back the way it was. */
     private var wasListeningBeforePause = false
-    private var wasWakeCycleBeforePause = false
     private var pendingPauseStop: Runnable? = null
 
     private val requestContactsPermission = registerForActivityResult(
@@ -58,12 +51,8 @@ class MainActivity : ComponentActivity() {
     ) { granted ->
         if (!granted) {
             viewModel.onVoiceError("Microphone permission denied")
-            // If this denial was for turning wake word on, reflect that honestly in the switch.
-            if (viewModel.uiState.value.wakeWordEnabled) viewModel.toggleWakeWord()
-        } else if (viewModel.uiState.value.wakeWordEnabled) {
-            startWakeListening()
         } else {
-            startCommandListening()
+            startListening()
         }
     }
 
@@ -72,19 +61,9 @@ class MainActivity : ComponentActivity() {
 
         voiceController = VoiceInputController(
             context = this,
-            onResult = ::handleVoiceResult,
+            onResult = viewModel::onVoiceResult,
             onListeningChanged = viewModel::onListeningChanged,
             onError = viewModel::onVoiceError,
-            onNoSpeech = {
-                // Falls back to passive wake listening whenever wake word is on — not just
-                // when the timed-out session was itself a wake scan. Without this, a command
-                // session that re-armed after a voice-triggered turn (isWakeCycle = false)
-                // would go silent forever the moment it timed out with nothing said, instead
-                // of dropping back to listening for "hey buddy".
-                if (viewModel.uiState.value.wakeWordEnabled) {
-                    mainHandler.postDelayed({ startWakeListening() }, WAKE_RETRY_DELAY_MS)
-                }
-            },
         )
         voiceOutputController = VoiceOutputController(this)
 
@@ -101,43 +80,15 @@ class MainActivity : ComponentActivity() {
                     if (state.pendingCapturedLink != null) screen = Screen.Commands
                 }
 
-                // Conversation mode: speak the result, then re-arm listening appropriately —
-                // straight back to command listening if this turn came from voice, or back to
-                // passive wake scanning if wake word is on and this was a typed command.
+                // Voice replies are always on: speak the result of a voice-initiated turn,
+                // then re-arm the mic so a hands-free back-and-forth can keep going.
                 LaunchedEffect(state.pendingSpeech) {
                     val request = state.pendingSpeech ?: return@LaunchedEffect
                     viewModel.consumeSpeechRequest()
                     voiceOutputController?.speak(request.text) {
                         // Wait a beat after our own speech ends so the mic doesn't pick up
                         // its tail as the next thing said.
-                        when {
-                            request.shouldRelisten ->
-                                mainHandler.postDelayed({ startCommandListening() }, RELISTEN_DELAY_MS)
-                            request.resumeWakeAfter ->
-                                mainHandler.postDelayed({ startWakeListening() }, RELISTEN_DELAY_MS)
-                        }
-                    }
-                }
-
-                // Same idea when conversation mode is off (no speech to wait for).
-                LaunchedEffect(state.pendingWakeResume) {
-                    if (state.pendingWakeResume) {
-                        viewModel.consumeWakeResume()
-                        startWakeListening()
-                    }
-                }
-
-                // Single place that starts/stops the passive "hey buddy" loop when the
-                // setting is flipped, so toggling it is the only trigger needed.
-                LaunchedEffect(state.wakeWordEnabled) {
-                    if (state.wakeWordEnabled) {
-                        if (hasMicPermission()) {
-                            startWakeListening()
-                        } else {
-                            requestMicPermission.launch(android.Manifest.permission.RECORD_AUDIO)
-                        }
-                    } else if (isWakeCycle) {
-                        voiceController?.stopListening()
+                        mainHandler.postDelayed({ startListening() }, RELISTEN_DELAY_MS)
                     }
                 }
 
@@ -150,7 +101,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onMicTapped = {
                             if (hasMicPermission()) {
-                                startCommandListening()
+                                startListening()
                             } else {
                                 requestMicPermission.launch(android.Manifest.permission.RECORD_AUDIO)
                             }
@@ -160,10 +111,6 @@ class MainActivity : ComponentActivity() {
                     Screen.Commands -> CommandManagerScreen(
                         commands = state.customCommands,
                         allApps = state.allApps,
-                        speechEnabled = state.speechEnabled,
-                        wakeWordEnabled = state.wakeWordEnabled,
-                        onToggleConversationMode = viewModel::toggleConversationMode,
-                        onToggleWakeWord = viewModel::toggleWakeWord,
                         pendingCapturedLink = state.pendingCapturedLink,
                         onConsumeCapturedLink = viewModel::consumeCapturedLink,
                         onAdd = viewModel::addCustomCommand,
@@ -192,19 +139,12 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         wasListeningBeforePause = viewModel.uiState.value.isListening
-        wasWakeCycleBeforePause = isWakeCycle
-        // Wake-word listening only ever runs while this screen is in the foreground: Android
-        // gives third-party apps no supported way to listen for a wake phrase — or launch
-        // themselves — while backgrounded without a permanent foreground-service notification,
-        // and even then auto-raising the app to the front isn't reliable across OEMs. So a
-        // listening session does eventually need to stop when you leave.
-        //
-        // But leaving is exactly what happens the instant a command opens another app (e.g.
-        // "open uber") — that used to kill the mic immediately, which both looked like the
-        // mic had died and, worse, could cut off a session before Android even resumed us.
-        // So don't stop right away: give it a short grace window, and onResume below cancels
-        // the pending stop outright if we're back before it fires — meaning a quick app-switch
-        // never audibly touches the mic at all. Only a longer stay away actually stops it.
+        // Leaving the app is exactly what happens the instant a command opens another app
+        // (e.g. "open uber") — stopping the mic immediately there used to look like it had
+        // died, and could cut a session off before Android even resumed us. So don't stop
+        // right away: give it a short grace window, and onResume below cancels the pending
+        // stop outright if we're back before it fires — a normal app-switch never audibly
+        // touches the mic. Only a longer stay away actually stops it.
         val stopRunnable = Runnable { voiceController?.stopListening() }
         pendingPauseStop = stopRunnable
         mainHandler.postDelayed(stopRunnable, PAUSE_STOP_GRACE_MS)
@@ -214,11 +154,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         pendingPauseStop?.let(mainHandler::removeCallbacks)
         pendingPauseStop = null
-        when {
-            viewModel.uiState.value.wakeWordEnabled && !viewModel.uiState.value.isListening ->
-                startWakeListening()
-            wasListeningBeforePause && !wasWakeCycleBeforePause && !viewModel.uiState.value.isListening ->
-                startCommandListening()
+        if (wasListeningBeforePause && !viewModel.uiState.value.isListening) {
+            startListening()
         }
     }
 
@@ -233,29 +170,9 @@ class MainActivity : ComponentActivity() {
         ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
 
-    private fun startWakeListening() {
+    private fun startListening() {
         if (!hasMicPermission()) return
-        isWakeCycle = true
         voiceController?.startListening()
-    }
-
-    private fun startCommandListening() {
-        isWakeCycle = false
-        voiceController?.startListening()
-    }
-
-    private fun handleVoiceResult(text: String) {
-        if (!isWakeCycle) {
-            viewModel.onVoiceResult(text)
-            return
-        }
-        when (val remainder = WakePhraseDetector.matchRemainder(text)) {
-            null -> if (viewModel.uiState.value.wakeWordEnabled) startWakeListening()
-            "" -> voiceOutputController?.speak("Yes?") {
-                mainHandler.postDelayed({ startCommandListening() }, RELISTEN_DELAY_MS)
-            }
-            else -> viewModel.onVoiceResult(remainder)
-        }
     }
 
     private fun handleShareIntent(intent: Intent?) {
