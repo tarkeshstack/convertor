@@ -17,7 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.tarkeshstack.smartlauncher.capture.ShareIntentParser
-import com.tarkeshstack.smartlauncher.model.AppInfo
+import com.tarkeshstack.smartlauncher.model.CapturedLink
+import com.tarkeshstack.smartlauncher.ui.BrowseForLinkScreen
 import com.tarkeshstack.smartlauncher.ui.CommandManagerScreen
 import com.tarkeshstack.smartlauncher.ui.GetLinkScreen
 import com.tarkeshstack.smartlauncher.ui.SearchScreen
@@ -25,7 +26,7 @@ import com.tarkeshstack.smartlauncher.ui.theme.SmartAppLauncherTheme
 import com.tarkeshstack.smartlauncher.voice.VoiceInputController
 import com.tarkeshstack.smartlauncher.voice.VoiceOutputController
 
-private enum class Screen { Search, Commands, GetLink }
+private enum class Screen { Search, Commands, GetLink, Browse }
 
 private const val RELISTEN_DELAY_MS = 350L
 private const val PAUSE_STOP_GRACE_MS = 1200L
@@ -41,11 +42,6 @@ class MainActivity : ComponentActivity() {
      *  listening session back the way it was. */
     private var wasListeningBeforePause = false
     private var pendingPauseStop: Runnable? = null
-
-    /** The package we most recently sent the user into from "Get a link", so an incoming
-     *  share can be attributed to it even on devices/apps that don't supply the OS
-     *  android-app referrer extra themselves. */
-    private var lastOpenedPackageForCapture: String? = null
 
     private val requestContactsPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -78,6 +74,8 @@ class MainActivity : ComponentActivity() {
             SmartAppLauncherTheme {
                 val state by viewModel.uiState.collectAsState()
                 var screen by remember { mutableStateOf(Screen.Search) }
+                var browseQuery by remember { mutableStateOf<String?>(null) }
+                var browseSourcePackage by remember { mutableStateOf<String?>(null) }
                 var openAddFormOnCommands by remember { mutableStateOf(false) }
 
                 // A link shared in from another app should take you straight to where
@@ -138,8 +136,20 @@ class MainActivity : ComponentActivity() {
                             viewModel.onLinkCaptured(link)
                             screen = Screen.Commands
                         },
-                        onOpenApp = { app -> openAppForCapture(app) },
+                        onBrowseForLink = { query, sourcePackage ->
+                            browseQuery = query
+                            browseSourcePackage = sourcePackage
+                            screen = Screen.Browse
+                        },
                         onBack = { screen = Screen.Commands },
+                    )
+                    Screen.Browse -> BrowseForLinkScreen(
+                        initialQuery = browseQuery,
+                        onCapture = { url ->
+                            viewModel.onLinkCaptured(CapturedLink(uri = url, sourcePackage = browseSourcePackage))
+                            screen = Screen.Commands
+                        },
+                        onBack = { screen = Screen.GetLink },
                     )
                 }
             }
@@ -191,24 +201,14 @@ class MainActivity : ComponentActivity() {
         voiceController?.startListening()
     }
 
-    /** Launches an app from "Get a link" and remembers it, so a share that comes back
-     *  without an OS-supplied referrer can still be attributed correctly. */
-    private fun openAppForCapture(app: AppInfo) {
-        lastOpenedPackageForCapture = app.packageName
-        packageManager.getLaunchIntentForPackage(app.packageName)?.let(::startActivity)
-    }
-
     private fun handleShareIntent(intent: Intent?) {
         val captured = intent?.let { ShareIntentParser.extractDeepLink(it, referrerPackageName()) } ?: return
-        lastOpenedPackageForCapture = null
         viewModel.onLinkCaptured(captured)
     }
 
-    /** The package of the app the user shared *from* — preferring what the OS/that app
-     *  itself supplied, and otherwise falling back to whichever app we most recently sent
-     *  the user into via "Get a link", since not every app populates the referrer extra. */
+    /** The package of the app the user shared *from*, when the OS/that app supplied it. */
     private fun referrerPackageName(): String? {
         val ref = referrer
-        return (if (ref?.scheme == "android-app") ref.host else null) ?: lastOpenedPackageForCapture
+        return if (ref?.scheme == "android-app") ref.host else null
     }
 }
