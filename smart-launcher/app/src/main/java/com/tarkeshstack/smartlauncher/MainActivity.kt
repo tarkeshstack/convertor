@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
                             openAddFormOnCommands = true
                             screen = Screen.Commands
                         },
+                        onBack = { moveTaskToBack(true) },
                     )
                     Screen.Commands -> CommandManagerScreen(
                         commands = state.customCommands,

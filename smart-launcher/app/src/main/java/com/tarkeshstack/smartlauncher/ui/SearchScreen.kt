@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -73,6 +74,7 @@ fun SearchScreen(
     onMicTapped: () -> Unit,
     onOpenCommandManager: () -> Unit,
     onAddCommand: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -106,6 +108,11 @@ fun SearchScreen(
                         }
                         Spacer(Modifier.width(10.dp))
                         Text("Smart Launcher", fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
