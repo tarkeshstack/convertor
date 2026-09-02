@@ -1,6 +1,7 @@
 package com.tarkeshstack.smartlauncher.ui
 
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -42,9 +43,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
+import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
@@ -56,6 +60,7 @@ private const val PLACEHOLDER = "REPLACE_ME"
 @Composable
 fun CommandManagerScreen(
     commands: List<CustomCommand>,
+    allApps: List<AppInfo>,
     pendingCapturedLink: CapturedLink?,
     onConsumeCapturedLink: () -> Unit,
     onAdd: (CustomCommand) -> Unit,
@@ -118,6 +123,7 @@ fun CommandManagerScreen(
             if (showAddForm) {
                 item {
                     AddCommandForm(
+                        allApps = allApps,
                         pendingCapturedLink = pendingCapturedLink,
                         onConsumeCapturedLink = onConsumeCapturedLink,
                         onAdd = { command ->
@@ -147,7 +153,11 @@ fun CommandManagerScreen(
                     Card(shape = RoundedCornerShape(18.dp)) {
                         Column {
                             commands.forEachIndexed { index, command ->
-                                CommandRow(command = command, onDelete = { onDelete(command.id) })
+                                CommandRow(
+                                    command = command,
+                                    allApps = allApps,
+                                    onDelete = { onDelete(command.id) },
+                                )
                                 if (index != commands.lastIndex) {
                                     HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))
                                 }
@@ -163,7 +173,10 @@ fun CommandManagerScreen(
 }
 
 @Composable
-private fun CommandRow(command: CustomCommand, onDelete: () -> Unit) {
+private fun CommandRow(command: CustomCommand, allApps: List<AppInfo>, onDelete: () -> Unit) {
+    val app = remember(command.packageName, allApps) {
+        allApps.firstOrNull { it.packageName == command.packageName }
+    }
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -173,12 +186,20 @@ private fun CommandRow(command: CustomCommand, onDelete: () -> Unit) {
             color = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.width(32.dp).height(32.dp),
         ) {
-            Icon(
-                Icons.Filled.Link,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(7.dp),
-            )
+            if (app != null) {
+                Image(
+                    bitmap = remember(app.packageName) { app.icon.toBitmap(width = 64, height = 64).asImageBitmap() },
+                    contentDescription = null,
+                    modifier = Modifier.padding(4.dp),
+                )
+            } else {
+                Icon(
+                    Icons.Filled.Link,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(7.dp),
+                )
+            }
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -199,13 +220,13 @@ private fun CommandRow(command: CustomCommand, onDelete: () -> Unit) {
 
 @Composable
 private fun AddCommandForm(
+    allApps: List<AppInfo>,
     pendingCapturedLink: CapturedLink?,
     onConsumeCapturedLink: () -> Unit,
     onAdd: (CustomCommand) -> Unit,
     onGetLink: () -> Unit,
 ) {
     var phrase by remember { mutableStateOf("") }
-    var label by remember { mutableStateOf("") }
     var deepLinkUri by remember { mutableStateOf("") }
     var deepLinkPackage by remember { mutableStateOf("") }
     var placeholderValue by remember { mutableStateOf("") }
@@ -254,14 +275,6 @@ private fun AddCommandForm(
                 value = phrase,
                 onValueChange = { phrase = it },
                 label = { Text("Trigger phrase (what you'll type or say)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = label,
-                onValueChange = { label = it },
-                label = { Text("Display name") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
@@ -346,23 +359,28 @@ private fun AddCommandForm(
 
             Spacer(Modifier.height(16.dp))
 
-            val canSave = phrase.isNotBlank() && label.isNotBlank() &&
+            val canSave = phrase.isNotBlank() &&
                 deepLinkUri.isNotBlank() && (!hasPlaceholder || placeholderValue.isNotBlank())
 
             Button(
                 onClick = {
+                    // The label is the linked app's real name when we know it — from the
+                    // target package — falling back to the trigger phrase itself, since
+                    // there's no separate "display name" field to type one into.
+                    val resolvedLabel = allApps.firstOrNull { it.packageName == deepLinkPackage.trim() }
+                        ?.label
+                        ?: phrase.trim().replaceFirstChar { it.uppercaseChar() }
                     onAdd(
                         CustomCommand(
                             id = UUID.randomUUID().toString(),
                             phrase = phrase.trim(),
-                            label = label.trim(),
+                            label = resolvedLabel,
                             kind = CustomCommandKind.DEEP_LINK,
                             packageName = deepLinkPackage.trim().ifBlank { null },
                             deepLinkUri = resolvedDeepLinkUri.trim(),
                         ),
                     )
                     phrase = ""
-                    label = ""
                     deepLinkUri = ""
                     deepLinkPackage = ""
                     placeholderValue = ""

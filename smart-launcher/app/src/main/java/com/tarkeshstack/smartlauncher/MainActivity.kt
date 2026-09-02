@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
                 val state by viewModel.uiState.collectAsState()
                 var screen by remember { mutableStateOf(Screen.Search) }
                 var browseQuery by remember { mutableStateOf<String?>(null) }
+                var browseSourcePackage by remember { mutableStateOf<String?>(null) }
                 var openAddFormOnCommands by remember { mutableStateOf(false) }
 
                 // A link shared in from another app should take you straight to where
@@ -120,6 +121,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Screen.Commands -> CommandManagerScreen(
                         commands = state.customCommands,
+                        allApps = state.allApps,
                         pendingCapturedLink = state.pendingCapturedLink,
                         onConsumeCapturedLink = viewModel::consumeCapturedLink,
                         onAdd = viewModel::addCustomCommand,
@@ -134,8 +136,9 @@ class MainActivity : ComponentActivity() {
                             viewModel.onLinkCaptured(link)
                             screen = Screen.Commands
                         },
-                        onBrowseForLink = { query ->
+                        onBrowseForLink = { query, sourcePackage ->
                             browseQuery = query
+                            browseSourcePackage = sourcePackage
                             screen = Screen.Browse
                         },
                         onBack = { screen = Screen.Commands },
@@ -143,7 +146,7 @@ class MainActivity : ComponentActivity() {
                     Screen.Browse -> BrowseForLinkScreen(
                         initialQuery = browseQuery,
                         onCapture = { url ->
-                            viewModel.onLinkCaptured(CapturedLink(uri = url, sourcePackage = null))
+                            viewModel.onLinkCaptured(CapturedLink(uri = url, sourcePackage = browseSourcePackage))
                             screen = Screen.Commands
                         },
                         onBack = { screen = Screen.GetLink },

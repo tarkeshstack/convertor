@@ -9,14 +9,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -41,7 +39,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -63,7 +60,6 @@ import com.tarkeshstack.smartlauncher.MainViewModel
 import com.tarkeshstack.smartlauncher.UiState
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
-import com.tarkeshstack.smartlauncher.model.ConversationEntry
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 
 private const val QUICK_COMMANDS_LIMIT = 4
@@ -112,11 +108,6 @@ fun SearchScreen(
                         Text("Smart Launcher", fontWeight = FontWeight.SemiBold)
                     }
                 },
-                actions = {
-                    IconButton(onClick = onOpenCommandManager) {
-                        Icon(Icons.Filled.Link, contentDescription = "Your commands")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
@@ -124,8 +115,6 @@ fun SearchScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
     ) { padding ->
-        val isIdle = state.query.isBlank() && state.conversationLog.isEmpty() && state.command == null
-
         // One continuous scrollable list for the whole screen — search field, quick
         // commands, and the app list all scroll together instead of as separate regions,
         // so there's no hard edge where scrolling used to look like it was cutting off.
@@ -136,29 +125,7 @@ fun SearchScreen(
                 .padding(horizontal = 16.dp),
         ) {
             item {
-                Spacer(Modifier.height(4.dp))
-                if (isIdle) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(44.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.Bolt,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(10.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "What do you want to do?",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                }
-
+                Spacer(Modifier.height(8.dp))
                 TextField(
                     value = state.query,
                     onValueChange = viewModel::onQueryChanged,
@@ -204,20 +171,15 @@ fun SearchScreen(
                 if (command != null && command.action != ActionType.OPEN_APP && command.action != ActionType.NONE) {
                     QuickActionCard(label = command.label, onClick = viewModel::runCommand)
                 }
-
-                if (state.conversationLog.isNotEmpty()) {
-                    ConversationTranscript(
-                        entries = state.conversationLog,
-                        onClear = viewModel::clearConversation,
-                    )
-                }
             }
 
             item {
                 CommandsQuickAccess(
                     commands = state.customCommands,
+                    allApps = state.allApps,
                     onRun = viewModel::runCustomCommandById,
                     onAdd = onAddCommand,
+                    onOpenAll = onOpenCommandManager,
                 )
             }
 
@@ -230,15 +192,18 @@ fun SearchScreen(
     }
 }
 
-/** Up to a few saved commands, one tap away right on the home screen. With 4 or fewer,
- *  an "Add" chip sits inline at the end of the row; once there are more than that, the
- *  row only shows the first few and the add action moves to a small button in the
- *  section's top-right corner instead of scrolling off with the rest. */
+/** Up to a few saved commands, one tap away right on the home screen — this is also the
+ *  only way to reach the full "Your commands" list now (tap the "Commands" label). With
+ *  4 or fewer, an "Add" chip sits inline at the end of the row; once there are more than
+ *  that, the row only shows the first few and the add action moves to a small button in
+ *  the section's top-right corner instead of scrolling off with the rest. */
 @Composable
 private fun CommandsQuickAccess(
     commands: List<CustomCommand>,
+    allApps: List<AppInfo>,
     onRun: (String) -> Unit,
     onAdd: () -> Unit,
+    onOpenAll: () -> Unit,
 ) {
     val overflowing = commands.size > QUICK_COMMANDS_LIMIT
 
@@ -252,6 +217,7 @@ private fun CommandsQuickAccess(
                 "Commands",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clickable(onClick = onOpenAll),
             )
             if (overflowing) {
                 IconButton(onClick = onAdd, modifier = Modifier.size(28.dp)) {
@@ -266,7 +232,11 @@ private fun CommandsQuickAccess(
         Spacer(Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(commands.take(QUICK_COMMANDS_LIMIT), key = { it.id }) { command ->
-                CommandChip(command = command, onClick = { onRun(command.id) })
+                CommandChip(
+                    command = command,
+                    app = allApps.firstOrNull { it.packageName == command.packageName },
+                    onClick = { onRun(command.id) },
+                )
             }
             if (!overflowing) {
                 item { AddCommandChip(onClick = onAdd) }
@@ -276,7 +246,7 @@ private fun CommandsQuickAccess(
 }
 
 @Composable
-private fun CommandChip(command: CustomCommand, onClick: () -> Unit) {
+private fun CommandChip(command: CustomCommand, app: AppInfo?, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
@@ -287,12 +257,20 @@ private fun CommandChip(command: CustomCommand, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Icon(
-                Icons.Filled.Link,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(16.dp),
-            )
+            if (app != null) {
+                Image(
+                    bitmap = remember(app.packageName) { app.icon.toBitmap(width = 48, height = 48).asImageBitmap() },
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+            } else {
+                Icon(
+                    Icons.Filled.Link,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
             Text(
                 command.label,
                 style = MaterialTheme.typography.bodyMedium,
@@ -352,63 +330,6 @@ private fun QuickActionCard(label: String, onClick: () -> Unit) {
                 label,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ConversationTranscript(entries: List<ConversationEntry>, onClear: () -> Unit) {
-    val listState = rememberLazyListState()
-    LaunchedEffect(entries.size) {
-        if (entries.isNotEmpty()) listState.animateScrollToItem(entries.lastIndex)
-    }
-    Column(modifier = Modifier.padding(top = 14.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Conversation",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            TextButton(onClick = onClear) { Text("Clear") }
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            items(entries) { entry -> ConversationBubble(entry) }
-        }
-    }
-}
-
-@Composable
-private fun ConversationBubble(entry: ConversationEntry) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (entry.isUser) Arrangement.End else Arrangement.Start,
-    ) {
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = if (entry.isUser) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-        ) {
-            Text(
-                entry.text,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (entry.isUser) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
             )
         }
     }

@@ -1,6 +1,7 @@
 package com.tarkeshstack.smartlauncher.ui
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,18 +9,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,27 +36,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
 import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestion
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 
-/** One flow for getting a deep link, entirely on this page: pick an app from the
- *  dropdown, then either use one of its popular links or add a new one — which opens
- *  that app's website in the built-in browser, still inside Smart Launcher. */
+/** One flow for getting a deep link: search for an app (with its icon shown, not just a
+ *  name), then either use one of its popular links, open the real app to share a link
+ *  back, or add a new one via the built-in in-page browser. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GetLinkScreen(
     allApps: List<AppInfo>,
     onLinkChosen: (CapturedLink) -> Unit,
-    onBrowseForLink: (initialQuery: String?) -> Unit,
+    onBrowseForLink: (initialQuery: String?, sourcePackage: String?) -> Unit,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
-    var appMenuOpen by remember { mutableStateOf(false) }
+    var appPickerOpen by remember { mutableStateOf(false) }
 
     val suggestionsForApp = remember(selectedApp) {
         val app = selectedApp ?: return@remember emptyList()
@@ -87,34 +92,33 @@ fun GetLinkScreen(
                         Text("Which app?", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Pick one, and it never leaves this page — you'll see its " +
-                                "popular links or can add a new one right here.",
+                            "Search for it, then use a popular link, open the app to " +
+                                "share one back, or add a new one — all without losing " +
+                                "your place here.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
 
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = { appMenuOpen = true },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(selectedApp?.label ?: "Choose an app", modifier = Modifier.weight(1f))
-                                Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                            }
-                            DropdownMenu(
-                                expanded = appMenuOpen,
-                                onDismissRequest = { appMenuOpen = false },
-                            ) {
-                                allApps.forEach { app ->
-                                    DropdownMenuItem(
-                                        text = { Text(app.label) },
-                                        onClick = {
-                                            selectedApp = app
-                                            appMenuOpen = false
-                                        },
-                                    )
-                                }
+                        OutlinedButton(
+                            onClick = { appPickerOpen = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            val app = selectedApp
+                            if (app != null) {
+                                Image(
+                                    bitmap = remember(app.packageName) {
+                                        app.icon.toBitmap(width = 48, height = 48).asImageBitmap()
+                                    },
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(app.label, modifier = Modifier.weight(1f))
+                            } else {
+                                Icon(Icons.Filled.Apps, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Search for an app…", modifier = Modifier.weight(1f))
                             }
                         }
 
@@ -147,20 +151,52 @@ fun GetLinkScreen(
                                 }
                             }
                             Spacer(Modifier.height(12.dp))
-                            Button(
-                                onClick = { onBrowseForLink(app.label) },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Icon(Icons.Filled.Public, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Add a new link for ${app.label}")
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        context.packageManager
+                                            .getLaunchIntentForPackage(app.packageName)
+                                            ?.let(context::startActivity)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Icon(Icons.Filled.OpenInNew, contentDescription = null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Open app & share")
+                                }
+                                Button(
+                                    onClick = { onBrowseForLink(app.label, app.packageName) },
+                                    modifier = Modifier.weight(1f),
+                                ) {
+                                    Icon(Icons.Filled.Public, contentDescription = null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Add a new link")
+                                }
                             }
+                            Text(
+                                "\"Open app & share\" leaves to ${app.label} — use its Share " +
+                                    "button and pick Smart Launcher to come straight back here.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
                         }
                     }
                 }
                 Spacer(Modifier.height(20.dp))
             }
         }
+    }
+
+    if (appPickerOpen) {
+        AppPickerDialog(
+            apps = allApps,
+            onDismiss = { appPickerOpen = false },
+            onSelect = { app ->
+                selectedApp = app
+                appPickerOpen = false
+            },
+        )
     }
 }
 

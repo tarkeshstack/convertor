@@ -12,7 +12,6 @@ import com.tarkeshstack.smartlauncher.data.InstalledAppsRepository
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CapturedLink
-import com.tarkeshstack.smartlauncher.model.ConversationEntry
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.ParsedCommand
 import com.tarkeshstack.smartlauncher.model.SpeechRequest
@@ -32,7 +31,6 @@ data class UiState(
     val pendingContactsPermissionFor: String? = null,
     val isListening: Boolean = false,
     val pendingCapturedLink: CapturedLink? = null,
-    val conversationLog: List<ConversationEntry> = emptyList(),
     val pendingSpeech: SpeechRequest? = null,
 )
 
@@ -108,14 +106,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun launchApp(app: AppInfo) {
-        val userText = _uiState.value.query.ifBlank { app.label }
-        runExecution(userText, successMessage = "Opened ${app.label}") { executor.openApp(app.packageName) }
+        runExecution(successMessage = "Opened ${app.label}") { executor.openApp(app.packageName) }
     }
 
     /** Runs the currently parsed command (Enter key / tapping the quick-action card). */
     fun runCommand() {
         val command = _uiState.value.command ?: return
-        val userText = _uiState.value.query
         when (command.action) {
             ActionType.OPEN_APP -> {
                 _uiState.value.filteredApps.firstOrNull()?.let { launchApp(it) }
@@ -123,14 +119,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ActionType.CUSTOM -> {
                 val custom = _uiState.value.customCommands.firstOrNull { it.id == command.target }
                 if (custom != null) {
-                    runExecution(userText, successMessage = "Ran \"${custom.label}\"") {
+                    runExecution(successMessage = "Ran \"${custom.label}\"") {
                         executor.runCustomCommand(custom)
                     }
                 } else {
                     _uiState.update { it.copy(statusMessage = "That saved command no longer exists") }
                 }
             }
-            else -> runExecution(userText, successMessage = command.label) { executor.execute(command) }
+            else -> runExecution(successMessage = command.label) { executor.execute(command) }
         }
     }
 
@@ -138,7 +134,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      *  search screen, where tapping one runs it without going through the typed query. */
     fun runCustomCommandById(id: String) {
         val custom = _uiState.value.customCommands.firstOrNull { it.id == id } ?: return
-        runExecution(custom.phrase, successMessage = "Ran \"${custom.label}\"") {
+        runExecution(successMessage = "Ran \"${custom.label}\"") {
             executor.runCustomCommand(custom)
         }
     }
@@ -181,23 +177,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(pendingSpeech = null) }
     }
 
-    fun clearConversation() {
-        _uiState.update { it.copy(conversationLog = emptyList()) }
-    }
-
-    /** Logs a turn (what you said/tapped, what happened) and, only when it came from voice,
-     *  queues the result to be spoken back — voice replies are always on, the way "Opened
-     *  Spotify" plays after a spoken command; typing never triggers a spoken reply. */
-    private fun completeTurn(userText: String, assistantText: String) {
+    /** Only when a turn came from voice, queues the result to be spoken back — voice
+     *  replies are always on, the way "Opened Spotify" plays after a spoken command;
+     *  typing never triggers a spoken reply. */
+    private fun completeTurn(assistantText: String) {
         val wasVoice = pendingTurnWasVoice
         pendingTurnWasVoice = false
-        _uiState.update { state ->
-            state.copy(
-                conversationLog = state.conversationLog +
-                    ConversationEntry(userText, isUser = true) +
-                    ConversationEntry(assistantText, isUser = false),
-                pendingSpeech = if (wasVoice) SpeechRequest(text = assistantText) else null,
-            )
+        if (wasVoice) {
+            _uiState.update { it.copy(pendingSpeech = SpeechRequest(text = assistantText)) }
         }
     }
 
@@ -210,31 +197,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(pendingCapturedLink = null) }
     }
 
-    private fun runExecution(userText: String, successMessage: String, block: suspend () -> ExecutionResult) {
+    private fun runExecution(successMessage: String, block: suspend () -> ExecutionResult) {
         viewModelScope.launch {
             when (val result = block()) {
                 is ExecutionResult.Launched -> {
                     _uiState.update { it.copy(statusMessage = null, query = "", command = null) }
-                    completeTurn(userText, successMessage)
+                    completeTurn(successMessage)
                 }
                 is ExecutionResult.AppNotInstalled -> {
                     val message = "${result.appLabel} isn't installed"
                     _uiState.update { it.copy(statusMessage = message) }
-                    completeTurn(userText, message)
+                    completeTurn(message)
                 }
                 is ExecutionResult.NeedsContactsPermission -> {
-                    // No log entry yet: this resolves via onContactsPermissionResult, which
-                    // re-runs the command (and logs it) once the permission prompt is answered.
+                    // Resolves via onContactsPermissionResult, which re-runs the command
+                    // once the permission prompt is answered.
                     _uiState.update { it.copy(pendingContactsPermissionFor = result.retryText) }
                 }
                 is ExecutionResult.ContactNotFound -> {
                     val message = "No contact found for \"${result.name}\""
                     _uiState.update { it.copy(statusMessage = message) }
-                    completeTurn(userText, message)
+                    completeTurn(message)
                 }
                 is ExecutionResult.Failed -> {
                     _uiState.update { it.copy(statusMessage = result.reason) }
-                    completeTurn(userText, result.reason)
+                    completeTurn(result.reason)
                 }
                 is ExecutionResult.UnknownAppSearch -> {
                     val match = findAppByName(result.appName)
@@ -245,7 +232,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         "Couldn't find an app matching \"${result.appName}\""
                     }
                     _uiState.update { it.copy(statusMessage = message, query = "", command = null) }
-                    completeTurn(userText, message)
+                    completeTurn(message)
                 }
             }
         }
