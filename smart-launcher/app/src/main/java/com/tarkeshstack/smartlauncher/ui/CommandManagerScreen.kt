@@ -1,7 +1,6 @@
 package com.tarkeshstack.smartlauncher.ui
 
 import android.net.Uri
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,19 +11,18 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -43,12 +42,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
-import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 import java.util.UUID
 
 private const val PLACEHOLDER = "REPLACE_ME"
@@ -57,18 +56,17 @@ private const val PLACEHOLDER = "REPLACE_ME"
 @Composable
 fun CommandManagerScreen(
     commands: List<CustomCommand>,
-    allApps: List<AppInfo>,
     pendingCapturedLink: CapturedLink?,
     onConsumeCapturedLink: () -> Unit,
     onAdd: (CustomCommand) -> Unit,
     onDelete: (String) -> Unit,
-    onBrowseForLink: () -> Unit,
+    onGetLink: () -> Unit,
     onBack: () -> Unit,
 ) {
     var showAddForm by remember { mutableStateOf(false) }
 
-    // A link captured from another app's Share sheet, or from the in-app browser, should
-    // always land you in the form, however you got to this screen.
+    // A link captured from Get a link should always land you in the form, however
+    // you got to this screen.
     LaunchedEffect(pendingCapturedLink) {
         if (pendingCapturedLink != null) showAddForm = true
     }
@@ -117,14 +115,13 @@ fun CommandManagerScreen(
             if (showAddForm) {
                 item {
                     AddCommandForm(
-                        allApps = allApps,
                         pendingCapturedLink = pendingCapturedLink,
                         onConsumeCapturedLink = onConsumeCapturedLink,
                         onAdd = { command ->
                             onAdd(command)
                             showAddForm = false
                         },
-                        onBrowseForLink = onBrowseForLink,
+                        onGetLink = onGetLink,
                     )
                     Spacer(Modifier.height(20.dp))
                     HorizontalDivider()
@@ -143,8 +140,17 @@ fun CommandManagerScreen(
                     )
                 }
             } else {
-                items(commands, key = { it.id }) { command ->
-                    CommandRow(command = command, onDelete = { onDelete(command.id) })
+                item {
+                    Card(shape = RoundedCornerShape(18.dp)) {
+                        Column {
+                            commands.forEachIndexed { index, command ->
+                                CommandRow(command = command, onDelete = { onDelete(command.id) })
+                                if (index != commands.lastIndex) {
+                                    HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -156,18 +162,30 @@ fun CommandManagerScreen(
 @Composable
 private fun CommandRow(command: CustomCommand, onDelete: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.width(32.dp).height(32.dp),
+        ) {
+            Icon(
+                Icons.Filled.Link,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(7.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(command.label, style = MaterialTheme.typography.bodyLarge)
+            Text(command.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
             Text(
-                "\"${command.phrase}\" → " + when (command.kind) {
-                    CustomCommandKind.OPEN_APP -> "opens ${command.packageName}"
-                    CustomCommandKind.DEEP_LINK -> command.deepLinkUri.orEmpty()
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                "\"${command.phrase}\"",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
         IconButton(onClick = onDelete) {
@@ -178,23 +196,19 @@ private fun CommandRow(command: CustomCommand, onDelete: () -> Unit) {
 
 @Composable
 private fun AddCommandForm(
-    allApps: List<AppInfo>,
     pendingCapturedLink: CapturedLink?,
     onConsumeCapturedLink: () -> Unit,
     onAdd: (CustomCommand) -> Unit,
-    onBrowseForLink: () -> Unit,
+    onGetLink: () -> Unit,
 ) {
     var phrase by remember { mutableStateOf("") }
     var label by remember { mutableStateOf("") }
     var deepLinkUri by remember { mutableStateOf("") }
     var deepLinkPackage by remember { mutableStateOf("") }
     var placeholderValue by remember { mutableStateOf("") }
-    var targetAppPickerOpen by remember { mutableStateOf(false) }
-    var suggestionsExpanded by remember { mutableStateOf(false) }
     var justCaptured by remember { mutableStateOf(false) }
 
-    // A link captured from another app's Share sheet, or from the in-app browser,
-    // lands here pre-filled.
+    // A link captured on the "Get a link" screen lands here pre-filled.
     LaunchedEffect(pendingCapturedLink) {
         val captured = pendingCapturedLink ?: return@LaunchedEffect
         deepLinkUri = captured.uri
@@ -202,14 +216,6 @@ private fun AddCommandForm(
         placeholderValue = ""
         justCaptured = true
         onConsumeCapturedLink()
-    }
-
-    // Suggestions are only useful for apps that are actually installed — no point
-    // offering a Spotify search link on a phone that doesn't have Spotify.
-    val installedSuggestions = remember(allApps) {
-        DeepLinkSuggestions.all.filter { suggestion ->
-            suggestion.packageName != null && allApps.any { it.packageName == suggestion.packageName }
-        }
     }
 
     val hasPlaceholder = deepLinkUri.contains(PLACEHOLDER)
@@ -258,103 +264,81 @@ private fun AddCommandForm(
             )
             Spacer(Modifier.height(16.dp))
 
-            Text(
-                "Share a link in from any app — its Share button → Smart Launcher — or pick " +
-                    "a popular one below.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-            if (installedSuggestions.isNotEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { suggestionsExpanded = true },
-                    ) {
-                        Text("Popular for your apps")
-                    }
-                    DropdownMenu(
-                        expanded = suggestionsExpanded,
-                        onDismissRequest = { suggestionsExpanded = false },
-                    ) {
-                        installedSuggestions.forEach { suggestion ->
-                            DropdownMenuItem(
-                                text = { Text("${suggestion.appLabel} — ${suggestion.description}") },
-                                onClick = {
-                                    deepLinkUri = suggestion.uriTemplate
-                                    deepLinkPackage = suggestion.packageName.orEmpty()
-                                    placeholderValue = ""
-                                    if (label.isBlank()) label = suggestion.description
-                                    suggestionsExpanded = false
-                                },
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-            OutlinedButton(
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                onClick = onGetLink,
                 modifier = Modifier.fillMaxWidth(),
-                onClick = onBrowseForLink,
             ) {
-                Text("Browse for a link — works even without an app's Share option")
-            }
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = deepLinkUri,
-                onValueChange = {
-                    deepLinkUri = it
-                    placeholderValue = ""
-                },
-                label = { Text("Deep link URI (e.g. myapp://screen)") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            if (hasPlaceholder) {
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = placeholderValue,
-                    onValueChange = { placeholderValue = it },
-                    label = { Text("Value to fill in (replaces $PLACEHOLDER in the link)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                Text(
-                    if (placeholderValue.isNotBlank()) {
-                        "Will save as: $resolvedDeepLinkUri"
-                    } else {
-                        "Type a value above — you never need to edit the link text itself."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = deepLinkPackage,
-                    onValueChange = { deepLinkPackage = it },
-                    label = { Text("Target app package (optional)") },
-                    placeholder = { Text("e.g. com.example.app") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                )
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { targetAppPickerOpen = true }) {
-                    Icon(Icons.Filled.Apps, contentDescription = "Search for an app")
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.Link,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        if (deepLinkUri.isBlank()) "Get a link" else "Change link",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
                 }
             }
-            if (targetAppPickerOpen) {
-                AppPickerDialog(
-                    apps = allApps,
-                    title = "Restrict to which app?",
-                    onDismiss = { targetAppPickerOpen = false },
-                    onSelect = { app ->
-                        deepLinkPackage = app.packageName
-                        targetAppPickerOpen = false
-                    },
+
+            if (deepLinkUri.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    deepLinkUri,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.secondary,
                 )
+
+                if (hasPlaceholder) {
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = placeholderValue,
+                        onValueChange = { placeholderValue = it },
+                        label = { Text("Value to fill in (replaces $PLACEHOLDER in the link)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    Text(
+                        if (placeholderValue.isNotBlank()) {
+                            "Will save as: $resolvedDeepLinkUri"
+                        } else {
+                            "Type a value above — you never need to edit the link text itself."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Target app package (optional) — restricts which app opens the link",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                    OutlinedTextField(
+                        value = deepLinkPackage,
+                        onValueChange = { deepLinkPackage = it },
+                        placeholder = { Text("e.g. com.example.app") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                    )
+                }
             }
 
             Spacer(Modifier.height(16.dp))

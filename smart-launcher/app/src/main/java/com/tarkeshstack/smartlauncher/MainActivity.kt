@@ -20,12 +20,13 @@ import com.tarkeshstack.smartlauncher.capture.ShareIntentParser
 import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.ui.BrowseForLinkScreen
 import com.tarkeshstack.smartlauncher.ui.CommandManagerScreen
+import com.tarkeshstack.smartlauncher.ui.GetLinkScreen
 import com.tarkeshstack.smartlauncher.ui.SearchScreen
 import com.tarkeshstack.smartlauncher.ui.theme.SmartAppLauncherTheme
 import com.tarkeshstack.smartlauncher.voice.VoiceInputController
 import com.tarkeshstack.smartlauncher.voice.VoiceOutputController
 
-private enum class Screen { Search, Commands, Browse }
+private enum class Screen { Search, Commands, GetLink, Browse }
 
 private const val RELISTEN_DELAY_MS = 350L
 private const val PAUSE_STOP_GRACE_MS = 1200L
@@ -110,20 +111,28 @@ class MainActivity : ComponentActivity() {
                     )
                     Screen.Commands -> CommandManagerScreen(
                         commands = state.customCommands,
-                        allApps = state.allApps,
                         pendingCapturedLink = state.pendingCapturedLink,
                         onConsumeCapturedLink = viewModel::consumeCapturedLink,
                         onAdd = viewModel::addCustomCommand,
                         onDelete = viewModel::deleteCustomCommand,
-                        onBrowseForLink = { screen = Screen.Browse },
+                        onGetLink = { screen = Screen.GetLink },
                         onBack = { screen = Screen.Search },
+                    )
+                    Screen.GetLink -> GetLinkScreen(
+                        allApps = state.allApps,
+                        onLinkChosen = { link ->
+                            viewModel.onLinkCaptured(link)
+                            screen = Screen.Commands
+                        },
+                        onBrowseForLink = { screen = Screen.Browse },
+                        onBack = { screen = Screen.Commands },
                     )
                     Screen.Browse -> BrowseForLinkScreen(
                         onCapture = { url ->
                             viewModel.onLinkCaptured(CapturedLink(uri = url, sourcePackage = null))
                             screen = Screen.Commands
                         },
-                        onBack = { screen = Screen.Commands },
+                        onBack = { screen = Screen.GetLink },
                     )
                 }
             }
