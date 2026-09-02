@@ -134,6 +134,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Runs a saved command directly by id — used by the quick-access commands row on the
+     *  search screen, where tapping one runs it without going through the typed query. */
+    fun runCustomCommandById(id: String) {
+        val custom = _uiState.value.customCommands.firstOrNull { it.id == id } ?: return
+        runExecution(custom.phrase, successMessage = "Ran \"${custom.label}\"") {
+            executor.runCustomCommand(custom)
+        }
+    }
+
     fun addCustomCommand(command: CustomCommand) {
         viewModelScope.launch {
             val updated = _uiState.value.customCommands + command

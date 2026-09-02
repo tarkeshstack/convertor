@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
                 val state by viewModel.uiState.collectAsState()
                 var screen by remember { mutableStateOf(Screen.Search) }
                 var browseQuery by remember { mutableStateOf<String?>(null) }
+                var openAddFormOnCommands by remember { mutableStateOf(false) }
 
                 // A link shared in from another app should take you straight to where
                 // you finish turning it into a command, not leave you on the search screen.
@@ -108,7 +109,14 @@ class MainActivity : ComponentActivity() {
                                 requestMicPermission.launch(android.Manifest.permission.RECORD_AUDIO)
                             }
                         },
-                        onOpenCommandManager = { screen = Screen.Commands },
+                        onOpenCommandManager = {
+                            openAddFormOnCommands = false
+                            screen = Screen.Commands
+                        },
+                        onAddCommand = {
+                            openAddFormOnCommands = true
+                            screen = Screen.Commands
+                        },
                     )
                     Screen.Commands -> CommandManagerScreen(
                         commands = state.customCommands,
@@ -118,6 +126,7 @@ class MainActivity : ComponentActivity() {
                         onDelete = viewModel::deleteCustomCommand,
                         onGetLink = { screen = Screen.GetLink },
                         onBack = { screen = Screen.Search },
+                        openAddFormInitially = openAddFormOnCommands,
                     )
                     Screen.GetLink -> GetLinkScreen(
                         allApps = state.allApps,

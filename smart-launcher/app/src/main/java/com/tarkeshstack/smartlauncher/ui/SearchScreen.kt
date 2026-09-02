@@ -3,7 +3,6 @@ package com.tarkeshstack.smartlauncher.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,15 +14,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
@@ -57,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.tarkeshstack.smartlauncher.MainViewModel
@@ -64,6 +64,9 @@ import com.tarkeshstack.smartlauncher.UiState
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.ConversationEntry
+import com.tarkeshstack.smartlauncher.model.CustomCommand
+
+private const val QUICK_COMMANDS_LIMIT = 4
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +76,7 @@ fun SearchScreen(
     onRequestContactsPermission: (String) -> Unit,
     onMicTapped: () -> Unit,
     onOpenCommandManager: () -> Unit,
+    onAddCommand: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -122,114 +126,207 @@ fun SearchScreen(
     ) { padding ->
         val isIdle = state.query.isBlank() && state.conversationLog.isEmpty() && state.command == null
 
-        Column(
+        // One continuous scrollable list for the whole screen — search field, quick
+        // commands, and the app list all scroll together instead of as separate regions,
+        // so there's no hard edge where scrolling used to look like it was cutting off.
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                .padding(horizontal = 16.dp),
         ) {
-            // The search bar sits roughly mid-screen rather than jammed under the header. This
-            // region scrolls internally (verticalScroll) so overflow from a long conversation
-            // transcript or the idle greeting never spills into — and hides — the app list below;
-            // it stays visually centered via Arrangement.Center since the scrollable column fills
-            // its full weighted slot.
-            Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                ) {
-                    if (isIdle) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(56.dp),
-                        ) {
+            item {
+                Spacer(Modifier.height(4.dp))
+                if (isIdle) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(44.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.Bolt,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(10.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "What do you want to do?",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+
+                TextField(
+                    value = state.query,
+                    onValueChange = viewModel::onQueryChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Search, speak, or type a command…") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = {
+                        IconButton(onClick = onMicTapped) {
                             Icon(
-                                Icons.Filled.Bolt,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(14.dp),
+                                if (state.isListening) Icons.Filled.Mic else Icons.Filled.MicOff,
+                                contentDescription = "Voice input",
+                                tint = if (state.isListening) {
+                                    MaterialTheme.colorScheme.secondary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
                             )
                         }
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "What do you want to do?",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(16.dp))
-                    }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(20.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { viewModel.runCommand() }),
+                    colors = TextFieldDefaults.colors(
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+                )
 
-                    TextField(
-                        value = state.query,
-                        onValueChange = viewModel::onQueryChanged,
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search, speak, or type a command…") },
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                        trailingIcon = {
-                            IconButton(onClick = onMicTapped) {
-                                Icon(
-                                    if (state.isListening) Icons.Filled.Mic else Icons.Filled.MicOff,
-                                    contentDescription = "Voice input",
-                                    tint = if (state.isListening) {
-                                        MaterialTheme.colorScheme.secondary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
-                            }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(20.dp),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { viewModel.runCommand() }),
-                        colors = TextFieldDefaults.colors(
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
+                if (state.isListening) {
+                    Text(
+                        "Listening…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 8.dp),
                     )
+                }
 
-                    if (state.isListening) {
-                        Text(
-                            "Listening…",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.secondary,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
+                val command = state.command
+                if (command != null && command.action != ActionType.OPEN_APP && command.action != ActionType.NONE) {
+                    QuickActionCard(label = command.label, onClick = viewModel::runCommand)
+                }
 
-                    val command = state.command
-                    if (command != null && command.action != ActionType.OPEN_APP && command.action != ActionType.NONE) {
-                        QuickActionCard(label = command.label, onClick = viewModel::runCommand)
-                    }
-
-                    if (state.conversationLog.isNotEmpty()) {
-                        ConversationTranscript(
-                            entries = state.conversationLog,
-                            onClear = viewModel::clearConversation,
-                        )
-                    }
+                if (state.conversationLog.isNotEmpty()) {
+                    ConversationTranscript(
+                        entries = state.conversationLog,
+                        onClear = viewModel::clearConversation,
+                    )
                 }
             }
 
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1.2f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            ) {
-                items(state.filteredApps, key = { it.packageName }) { app ->
-                    AppRow(app = app, onClick = { viewModel.launchApp(app) })
+            item {
+                CommandsQuickAccess(
+                    commands = state.customCommands,
+                    onRun = viewModel::runCustomCommandById,
+                    onAdd = onAddCommand,
+                )
+            }
+
+            items(state.filteredApps, key = { it.packageName }) { app ->
+                AppRow(app = app, onClick = { viewModel.launchApp(app) })
+            }
+
+            item { Spacer(Modifier.height(16.dp)) }
+        }
+    }
+}
+
+/** Up to a few saved commands, one tap away right on the home screen. With 4 or fewer,
+ *  an "Add" chip sits inline at the end of the row; once there are more than that, the
+ *  row only shows the first few and the add action moves to a small button in the
+ *  section's top-right corner instead of scrolling off with the rest. */
+@Composable
+private fun CommandsQuickAccess(
+    commands: List<CustomCommand>,
+    onRun: (String) -> Unit,
+    onAdd: () -> Unit,
+) {
+    val overflowing = commands.size > QUICK_COMMANDS_LIMIT
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Commands",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (overflowing) {
+                IconButton(onClick = onAdd, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = "Add a command",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
                 }
             }
+        }
+        Spacer(Modifier.height(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(commands.take(QUICK_COMMANDS_LIMIT), key = { it.id }) { command ->
+                CommandChip(command = command, onClick = { onRun(command.id) })
+            }
+            if (!overflowing) {
+                item { AddCommandChip(onClick = onAdd) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommandChip(command: CustomCommand, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                Icons.Filled.Link,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                command.label,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddCommandChip(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                Icons.Filled.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                "Add command",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Medium,
+            )
         }
     }
 }

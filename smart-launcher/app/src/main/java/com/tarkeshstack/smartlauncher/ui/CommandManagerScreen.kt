@@ -62,8 +62,11 @@ fun CommandManagerScreen(
     onDelete: (String) -> Unit,
     onGetLink: () -> Unit,
     onBack: () -> Unit,
+    /** Opens straight into the add-command form — used when this screen is reached via
+     *  the home screen's "Add command" chip/corner button rather than the header icon. */
+    openAddFormInitially: Boolean = false,
 ) {
-    var showAddForm by remember { mutableStateOf(false) }
+    var showAddForm by remember { mutableStateOf(openAddFormInitially) }
 
     // A link captured from Get a link should always land you in the form, however
     // you got to this screen.
