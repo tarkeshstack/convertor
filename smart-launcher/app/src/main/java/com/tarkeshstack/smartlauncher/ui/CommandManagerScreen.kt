@@ -202,16 +202,12 @@ private fun CommandRow(command: CustomCommand, allApps: List<AppInfo>, onDelete:
             }
         }
         Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(command.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-            Text(
-                "\"${command.phrase}\"",
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
+        Text(
+            command.phrase,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
         IconButton(onClick = onDelete) {
             Icon(Icons.Filled.Delete, contentDescription = "Delete command")
         }

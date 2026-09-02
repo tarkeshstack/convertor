@@ -2,32 +2,31 @@ package com.tarkeshstack.smartlauncher.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary: rich chocolate brown, the app's core accent.
-val LauncherPrimaryLight = Color(0xFF6B4226)
+// A single accent hue everywhere — secondary reuses primary rather than introducing a
+// second competing color family, and every surface is pure white.
+val LauncherPrimaryLight = Color(0xFF2E5AAC)
 val LauncherOnPrimaryLight = Color(0xFFFFFFFF)
-val LauncherPrimaryContainerLight = Color(0xFFEDDCC3)
-val LauncherOnPrimaryContainerLight = Color(0xFF2E1D0E)
+val LauncherPrimaryContainerLight = Color(0xFFE6EDFB)
+val LauncherOnPrimaryContainerLight = Color(0xFF14294F)
 
-val LauncherPrimaryDark = Color(0xFFE0B583)
-val LauncherOnPrimaryDark = Color(0xFF3B2712)
-val LauncherPrimaryContainerDark = Color(0xFF54371D)
-val LauncherOnPrimaryContainerDark = Color(0xFFF0DCC2)
+val LauncherPrimaryDark = Color(0xFF9DBBF2)
+val LauncherOnPrimaryDark = Color(0xFF0D2547)
+val LauncherPrimaryContainerDark = Color(0xFF23407A)
+val LauncherOnPrimaryContainerDark = Color(0xFFDCE6FB)
 
-// Secondary: warm caramel/gold, kept in the same rich family as primary rather than
-// introducing a clashing second hue — used for the mic/voice "active" state.
-val LauncherSecondaryLight = Color(0xFFA9611F)
-val LauncherOnSecondaryLight = Color(0xFFFFFFFF)
-val LauncherSecondaryDark = Color(0xFFE8B368)
-val LauncherOnSecondaryDark = Color(0xFF442C05)
+val LauncherSecondaryLight = LauncherPrimaryLight
+val LauncherOnSecondaryLight = LauncherOnPrimaryLight
+val LauncherSecondaryDark = LauncherPrimaryDark
+val LauncherOnSecondaryDark = LauncherOnPrimaryDark
 
-val LauncherBackgroundLight = Color(0xFFFAF0E1)
-val LauncherSurfaceLight = Color(0xFFFFFCF7)
-val LauncherSurfaceVariantLight = Color(0xFFEFE0C8)
-val LauncherOnSurfaceLight = Color(0xFF2B1D10)
-val LauncherOutlineLight = Color(0xFFB0916A)
+val LauncherBackgroundLight = Color(0xFFFFFFFF)
+val LauncherSurfaceLight = Color(0xFFFFFFFF)
+val LauncherSurfaceVariantLight = Color(0xFFF4F5F7)
+val LauncherOnSurfaceLight = Color(0xFF1B1C1E)
+val LauncherOutlineLight = Color(0xFFD3D6DB)
 
-val LauncherBackgroundDark = Color(0xFF1B130B)
-val LauncherSurfaceDark = Color(0xFF241A10)
-val LauncherSurfaceVariantDark = Color(0xFF3D2E1B)
-val LauncherOnSurfaceDark = Color(0xFFEDE3D6)
-val LauncherOutlineDark = Color(0xFF9C8768)
+val LauncherBackgroundDark = Color(0xFF121316)
+val LauncherSurfaceDark = Color(0xFF121316)
+val LauncherSurfaceVariantDark = Color(0xFF232529)
+val LauncherOnSurfaceDark = Color(0xFFE8E9EC)
+val LauncherOutlineDark = Color(0xFF4B4E54)

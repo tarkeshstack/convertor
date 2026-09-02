@@ -17,15 +17,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -37,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,20 +48,17 @@ import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestion
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 
-/** One flow for getting a deep link: search for an app (with its icon shown, not just a
- *  name), then either use one of its popular links, open the real app to share a link
- *  back, or add a new one via the built-in in-page browser. */
+/** One flow for getting a deep link: search for an app right in a dropdown (no popup),
+ *  then either use one of its popular links or open the real app to share one back. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GetLinkScreen(
     allApps: List<AppInfo>,
     onLinkChosen: (CapturedLink) -> Unit,
-    onBrowseForLink: (initialQuery: String?, sourcePackage: String?) -> Unit,
+    onOpenApp: (AppInfo) -> Unit,
     onBack: () -> Unit,
 ) {
-    val context = LocalContext.current
     var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
-    var appPickerOpen by remember { mutableStateOf(false) }
 
     val suggestionsForApp = remember(selectedApp) {
         val app = selectedApp ?: return@remember emptyList()
@@ -92,35 +90,18 @@ fun GetLinkScreen(
                         Text("Which app?", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Search for it, then use a popular link, open the app to " +
-                                "share one back, or add a new one — all without losing " +
-                                "your place here.",
+                            "Search for it below, then use a popular link or open the app " +
+                                "to share one back.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(12.dp))
 
-                        OutlinedButton(
-                            onClick = { appPickerOpen = true },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            val app = selectedApp
-                            if (app != null) {
-                                Image(
-                                    bitmap = remember(app.packageName) {
-                                        app.icon.toBitmap(width = 48, height = 48).asImageBitmap()
-                                    },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(app.label, modifier = Modifier.weight(1f))
-                            } else {
-                                Icon(Icons.Filled.Apps, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Search for an app…", modifier = Modifier.weight(1f))
-                            }
-                        }
+                        AppDropdownPicker(
+                            apps = allApps,
+                            selected = selectedApp,
+                            onSelect = { selectedApp = it },
+                        )
 
                         selectedApp?.let { app ->
                             Spacer(Modifier.height(16.dp))
@@ -151,31 +132,17 @@ fun GetLinkScreen(
                                 }
                             }
                             Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                OutlinedButton(
-                                    onClick = {
-                                        context.packageManager
-                                            .getLaunchIntentForPackage(app.packageName)
-                                            ?.let(context::startActivity)
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    Icon(Icons.Filled.OpenInNew, contentDescription = null)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Open app & share")
-                                }
-                                Button(
-                                    onClick = { onBrowseForLink(app.label, app.packageName) },
-                                    modifier = Modifier.weight(1f),
-                                ) {
-                                    Icon(Icons.Filled.Public, contentDescription = null)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Add a new link")
-                                }
+                            Button(
+                                onClick = { onOpenApp(app) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(Icons.Filled.OpenInNew, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("Open ${app.label} to get a link")
                             }
                             Text(
-                                "\"Open app & share\" leaves to ${app.label} — use its Share " +
-                                    "button and pick Smart Launcher to come straight back here.",
+                                "Use its Share button and pick Smart Launcher — we'll grab " +
+                                    "the link and bring you straight back here.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 8.dp),
@@ -187,16 +154,83 @@ fun GetLinkScreen(
             }
         }
     }
+}
 
-    if (appPickerOpen) {
-        AppPickerDialog(
-            apps = allApps,
-            onDismiss = { appPickerOpen = false },
-            onSelect = { app ->
-                selectedApp = app
-                appPickerOpen = false
+/** An inline searchable dropdown — no separate popup dialog — for picking an installed
+ *  app, showing each one's real icon next to its name. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppDropdownPicker(
+    apps: List<AppInfo>,
+    selected: AppInfo?,
+    onSelect: (AppInfo) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember(selected) { mutableStateOf(selected?.label.orEmpty()) }
+    val filtered = remember(apps, query) {
+        val needle = query.trim().lowercase()
+        if (needle.isEmpty()) apps else apps.filter { it.label.lowercase().contains(needle) }
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = {
+                query = it
+                expanded = true
             },
+            label = { Text("Search for an app") },
+            placeholder = { Text("Type an app name…") },
+            leadingIcon = {
+                val app = selected
+                if (app != null && query == app.label) {
+                    Image(
+                        bitmap = remember(app.packageName) {
+                            app.icon.toBitmap(width = 48, height = 48).asImageBitmap()
+                        },
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
+                } else {
+                    Icon(Icons.Filled.Apps, contentDescription = null)
+                }
+            },
+            singleLine = true,
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
         )
+        if (filtered.isNotEmpty()) {
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                filtered.forEach { app ->
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Image(
+                                    bitmap = remember(app.packageName) {
+                                        app.icon.toBitmap(width = 48, height = 48).asImageBitmap()
+                                    },
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                                Text(app.label)
+                            }
+                        },
+                        onClick = {
+                            onSelect(app)
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
