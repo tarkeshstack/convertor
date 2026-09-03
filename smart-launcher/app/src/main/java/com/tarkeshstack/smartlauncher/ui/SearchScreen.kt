@@ -70,6 +70,7 @@ import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.model.DEEP_LINK_PLACEHOLDER
+import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -238,6 +239,7 @@ fun SearchScreen(
     if (fillTarget != null) {
         QuickFillDialog(
             commandLabel = fillTarget.label,
+            hint = DeepLinkSuggestions.all.firstOrNull { it.packageName == fillTarget.packageName }?.keywordHint,
             onDismiss = { quickFillCommand = null },
             onRun = { keyword ->
                 viewModel.runCustomCommandWithKeyword(fillTarget.id, keyword)

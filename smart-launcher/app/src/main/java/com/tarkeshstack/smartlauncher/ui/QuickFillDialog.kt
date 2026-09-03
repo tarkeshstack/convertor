@@ -24,10 +24,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 
 /** A one-field prompt for the keyword a command's link still needs before it can run —
- *  the value is only used for this run, so the saved command stays a reusable template. */
+ *  the value is only used for this run, so the saved command stays a reusable template.
+ *  [hint], when known for the target app, shows a concrete example of what to type (e.g.
+ *  "a username — your own, or someone else's" for an Instagram profile) so it's never a
+ *  guess what belongs there. */
 @Composable
 fun QuickFillDialog(
     commandLabel: String,
+    hint: String?,
     onDismiss: () -> Unit,
     onRun: (String) -> Unit,
 ) {
@@ -42,6 +46,11 @@ fun QuickFillDialog(
                     value = keyword,
                     onValueChange = { keyword = it },
                     placeholder = { Text("Type a keyword…") },
+                    supportingText = if (hint != null) {
+                        { Text(hint) }
+                    } else {
+                        null
+                    },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth(),

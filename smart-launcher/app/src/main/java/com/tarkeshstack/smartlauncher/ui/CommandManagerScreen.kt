@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -53,6 +55,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.tarkeshstack.smartlauncher.model.AppInfo
@@ -61,6 +64,7 @@ import com.tarkeshstack.smartlauncher.model.CommandDraft
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.model.DEEP_LINK_PLACEHOLDER
+import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 import java.util.UUID
 
 private const val PLACEHOLDER = DEEP_LINK_PLACEHOLDER
@@ -100,31 +104,23 @@ fun CommandManagerScreen(
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                actions = {
-                    IconButton(onClick = {
-                        showAddForm = !showAddForm
-                        if (!showAddForm) onDraftChanged(CommandDraft())
-                    }) {
-                        Icon(
-                            if (showAddForm) Icons.Filled.Close else Icons.Filled.Add,
-                            contentDescription = if (showAddForm) "Close" else "Add a command",
-                        )
-                    }
-                },
             )
         },
     ) { padding ->
-        // Everything lives in one scrollable list — including the add-command form — so
-        // whichever field you're typing into (even the last one) scrolls up above the
-        // keyboard instead of being hidden behind it.
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp)
-                .imePadding(),
-        ) {
-            item {
+        // The add-command control (and its form, once opened) sits in its own scrollable
+        // area above the command list, outside the list's LazyColumn — so it's always the
+        // first thing on screen and stays put (floating above the list) as the list below
+        // is scrolled, instead of disappearing off the top like just another row would.
+        // It still scrolls internally so a long open form's last field can ride up above
+        // the keyboard rather than being hidden behind it.
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .imePadding(),
+            ) {
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Shortcuts only — a plain app name already opens it, no command " +
@@ -132,11 +128,9 @@ fun CommandManagerScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(16.dp))
-            }
+                Spacer(Modifier.height(12.dp))
 
-            if (showAddForm) {
-                item {
+                if (showAddForm) {
                     AddCommandForm(
                         allApps = allApps,
                         pendingCapturedLink = pendingCapturedLink,
@@ -148,68 +142,110 @@ fun CommandManagerScreen(
                             showAddForm = false
                         },
                         onGetLink = onGetLink,
+                        onClose = {
+                            showAddForm = false
+                            onDraftChanged(CommandDraft())
+                        },
                     )
-                    Spacer(Modifier.height(20.dp))
-                    HorizontalDivider()
-                    Spacer(Modifier.height(8.dp))
+                } else {
+                    AddCommandTrigger(onClick = { showAddForm = true })
                 }
+                Spacer(Modifier.height(12.dp))
             }
+            HorizontalDivider()
 
-            if (commands.isEmpty()) {
-                item {
-                    Text(
-                        "No commands yet. Tap + above to add one — e.g. trigger phrase " +
-                            "\"movie night\" that opens Netflix.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 16.dp),
-                    )
-                }
-            } else {
-                item {
-                    Card(
-                        shape = RoundedCornerShape(18.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    ) {
-                        Column {
-                            commands.forEachIndexed { index, command ->
-                                CommandRow(
-                                    command = command,
-                                    allApps = allApps,
-                                    onEdit = {
-                                        onDraftChanged(
-                                            CommandDraft(
-                                                editingId = command.id,
-                                                phrase = command.phrase,
-                                                deepLinkUri = command.deepLinkUri.orEmpty(),
-                                                deepLinkPackage = if (command.kind == CustomCommandKind.DEEP_LINK) {
-                                                    command.packageName.orEmpty()
-                                                } else {
-                                                    ""
-                                                },
-                                                systemAction = command.systemAction.orEmpty(),
-                                                systemActionLabel = if (command.kind == CustomCommandKind.SYSTEM_SHORTCUT) {
-                                                    command.label
-                                                } else {
-                                                    ""
-                                                },
-                                            ),
-                                        )
-                                        showAddForm = true
-                                    },
-                                    onToggleVisibleOnHome = { onToggleVisibleOnHome(command) },
-                                    onDelete = { onDelete(command.id) },
-                                )
-                                if (index != commands.lastIndex) {
-                                    HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
+            ) {
+                if (commands.isEmpty()) {
+                    item {
+                        Text(
+                            "No commands yet. Tap \"Add command\" above to add one — e.g. " +
+                                "trigger phrase \"movie night\" that opens Netflix.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 16.dp),
+                        )
+                    }
+                } else {
+                    item {
+                        Spacer(Modifier.height(12.dp))
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        ) {
+                            Column {
+                                commands.forEachIndexed { index, command ->
+                                    CommandRow(
+                                        command = command,
+                                        allApps = allApps,
+                                        onEdit = {
+                                            onDraftChanged(
+                                                CommandDraft(
+                                                    editingId = command.id,
+                                                    phrase = command.phrase,
+                                                    deepLinkUri = command.deepLinkUri.orEmpty(),
+                                                    deepLinkPackage = if (command.kind == CustomCommandKind.DEEP_LINK) {
+                                                        command.packageName.orEmpty()
+                                                    } else {
+                                                        ""
+                                                    },
+                                                    systemAction = command.systemAction.orEmpty(),
+                                                    systemActionLabel = if (command.kind == CustomCommandKind.SYSTEM_SHORTCUT) {
+                                                        command.label
+                                                    } else {
+                                                        ""
+                                                    },
+                                                ),
+                                            )
+                                            showAddForm = true
+                                        },
+                                        onToggleVisibleOnHome = { onToggleVisibleOnHome(command) },
+                                        onDelete = { onDelete(command.id) },
+                                    )
+                                    if (index != commands.lastIndex) {
+                                        HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            item { Spacer(Modifier.height(24.dp)) }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddCommandTrigger(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        tonalElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                Icons.Filled.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                "Add command",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Medium,
+            )
         }
     }
 }
@@ -226,13 +262,14 @@ private fun CommandRow(
         allApps.firstOrNull { it.packageName == command.packageName }
     }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Surface(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.width(32.dp).height(32.dp),
+            modifier = Modifier.width(26.dp).height(26.dp),
         ) {
             when {
                 app != null -> Image(
@@ -244,21 +281,23 @@ private fun CommandRow(
                     Icons.Filled.Settings,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(7.dp),
+                    modifier = Modifier.padding(5.dp),
                 )
                 else -> Icon(
                     Icons.Filled.Link,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(7.dp),
+                    modifier = Modifier.padding(5.dp),
                 )
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(8.dp))
         Text(
             command.phrase,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         if (command.deepLinkUri?.contains(PLACEHOLDER) == true) {
@@ -266,10 +305,10 @@ private fun CommandRow(
                 Icons.Filled.Keyboard,
                 contentDescription = "Needs a keyword to run",
                 tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(18.dp).padding(end = 4.dp),
+                modifier = Modifier.size(15.dp).padding(end = 2.dp),
             )
         }
-        IconButton(onClick = onToggleVisibleOnHome) {
+        IconButton(onClick = onToggleVisibleOnHome, modifier = Modifier.size(30.dp)) {
             Icon(
                 if (command.visibleOnHome) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                 contentDescription = if (command.visibleOnHome) {
@@ -282,13 +321,14 @@ private fun CommandRow(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
+                modifier = Modifier.size(16.dp),
             )
         }
-        IconButton(onClick = onEdit) {
-            Icon(Icons.Filled.Edit, contentDescription = "Edit command")
+        IconButton(onClick = onEdit, modifier = Modifier.size(30.dp)) {
+            Icon(Icons.Filled.Edit, contentDescription = "Edit command", modifier = Modifier.size(16.dp))
         }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Delete, contentDescription = "Delete command")
+        IconButton(onClick = onDelete, modifier = Modifier.size(30.dp)) {
+            Icon(Icons.Filled.Delete, contentDescription = "Delete command", modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -302,6 +342,7 @@ private fun AddCommandForm(
     onDraftChanged: (CommandDraft) -> Unit,
     onSave: (CustomCommand) -> Unit,
     onGetLink: (currentPackage: String?) -> Unit,
+    onClose: () -> Unit,
 ) {
     var shortcutPickerOpen by remember { mutableStateOf(false) }
 
@@ -336,10 +377,19 @@ private fun AddCommandForm(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                if (draft.editingId != null) "Edit command" else "Add a command",
-                style = MaterialTheme.typography.titleMedium,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (draft.editingId != null) "Edit command" else "Add a command",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close")
+                }
+            }
             Spacer(Modifier.height(12.dp))
 
             if (draft.justCaptured) {
@@ -399,10 +449,18 @@ private fun AddCommandForm(
 
                 if (hasPlaceholder) {
                     Spacer(Modifier.height(12.dp))
+                    val keywordHint = DeepLinkSuggestions.all
+                        .firstOrNull { it.packageName == draft.deepLinkPackage.trim() }
+                        ?.keywordHint
                     OutlinedTextField(
                         value = draft.placeholderValue,
                         onValueChange = { onDraftChanged(draft.copy(placeholderValue = it)) },
                         label = { Text("Value to fill in (replaces $PLACEHOLDER in the link)") },
+                        supportingText = if (keywordHint != null) {
+                            { Text(keywordHint) }
+                        } else {
+                            null
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )
