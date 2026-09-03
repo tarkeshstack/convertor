@@ -9,7 +9,6 @@ import com.tarkeshstack.smartlauncher.command.ExecutionResult
 import com.tarkeshstack.smartlauncher.data.ContactsRepository
 import com.tarkeshstack.smartlauncher.data.CustomCommandRepository
 import com.tarkeshstack.smartlauncher.data.InstalledAppsRepository
-import com.tarkeshstack.smartlauncher.data.SettingsRepository
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CapturedLink
@@ -35,7 +34,6 @@ data class UiState(
     val isListening: Boolean = false,
     val pendingCapturedLink: CapturedLink? = null,
     val pendingSpeech: SpeechRequest? = null,
-    val showCommandsOnHome: Boolean = true,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -43,10 +41,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val appsRepo = InstalledAppsRepository(application)
     private val contactsRepo = ContactsRepository(application)
     private val customCommandsRepo = CustomCommandRepository(application)
-    private val settingsRepo = SettingsRepository(application)
     private val executor = ActionExecutor(application, appsRepo, contactsRepo)
 
-    private val _uiState = MutableStateFlow(UiState(showCommandsOnHome = settingsRepo.showCommandsOnHome()))
+    private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
@@ -94,9 +91,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ),
     )
 
-    fun setShowCommandsOnHome(show: Boolean) {
-        settingsRepo.setShowCommandsOnHome(show)
-        _uiState.update { it.copy(showCommandsOnHome = show) }
+    /** Per-command home-screen visibility — each saved command shows or hides on the
+     *  home screen independently rather than as one switch for all of them. */
+    fun setCommandVisibleOnHome(id: String, visible: Boolean) {
+        viewModelScope.launch {
+            val updated = _uiState.value.customCommands.map {
+                if (it.id == id) it.copy(visibleOnHome = visible) else it
+            }
+            customCommandsRepo.saveAll(updated)
+            _uiState.update { it.copy(customCommands = updated) }
+        }
     }
 
     fun onQueryChanged(text: String) {

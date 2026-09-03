@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -183,49 +182,32 @@ fun SearchScreen(
                 }
             }
 
-            // While actively searching, only commands linked to an app that's still in
-            // the results belong here — a stray unrelated command sitting above a
-            // narrowed-down app list reads as broken, not helpful. With nothing typed,
-            // the usual full quick-access list (and the way to add to it) shows instead.
+            // Each command shows or hides on the home screen independently (its own eye
+            // icon), rather than one switch for all of them. While actively searching,
+            // only commands linked to an app that's still in the results belong here too
+            // — a stray unrelated command sitting above a narrowed-down app list reads as
+            // broken, not helpful.
             val isSearching = state.query.isNotBlank()
+            val homeCommands = state.customCommands.filter { it.visibleOnHome }
             val visibleCommands = if (isSearching) {
-                state.customCommands.filter { command ->
+                homeCommands.filter { command ->
                     state.filteredApps.any { it.packageName == command.packageName }
                 }
             } else {
-                state.customCommands
+                homeCommands
             }
 
-            if (!isSearching) {
-                // The "Commands" header (and its show/hide eye toggle) always stays on
-                // the home screen — hiding is just collapsing the rows beneath it, never
-                // the header itself, so there's always a way back to show them again
-                // without having to go into Your commands.
+            if (!isSearching || visibleCommands.isNotEmpty()) {
                 item {
                     CommandsQuickAccess(
                         commands = visibleCommands,
                         allApps = state.allApps,
                         onRun = viewModel::runCustomCommandById,
                         onEdit = onEditCommand,
+                        onHide = { command -> viewModel.setCommandVisibleOnHome(command.id, false) },
                         onAdd = onAddCommand,
                         onOpenAll = onOpenCommandManager,
-                        expanded = state.showCommandsOnHome,
-                        onToggleExpanded = { viewModel.setShowCommandsOnHome(!state.showCommandsOnHome) },
-                        showAddRow = true,
-                    )
-                }
-            } else if (state.showCommandsOnHome && visibleCommands.isNotEmpty()) {
-                item {
-                    CommandsQuickAccess(
-                        commands = visibleCommands,
-                        allApps = state.allApps,
-                        onRun = viewModel::runCustomCommandById,
-                        onEdit = onEditCommand,
-                        onAdd = onAddCommand,
-                        onOpenAll = onOpenCommandManager,
-                        expanded = true,
-                        onToggleExpanded = null,
-                        showAddRow = false,
+                        showAddRow = !isSearching,
                     )
                 }
             }
@@ -243,65 +225,54 @@ fun SearchScreen(
     }
 }
 
-/** All saved commands, listed vertically right on the home screen — this is also the
- *  only way to reach the full "Your commands" list now (tap the "Commands" label).
+/** Every command currently visible on the home screen, listed vertically — this is also
+ *  the only way to reach the full "Your commands" list now (tap the "Commands" label).
  *  "Add command" always sits below the list, as its own row, rather than competing for
- *  space inside it. The header row (with its show/hide eye toggle, when offered) always
- *  renders even when collapsed, so hiding the list is never a dead end. */
+ *  space inside it. Each row carries its own eye icon to hide just that command from
+ *  here — showing a hidden one back again happens from the full list in Your commands,
+ *  which always lists every command regardless of this per-command visibility. */
 @Composable
 private fun CommandsQuickAccess(
     commands: List<CustomCommand>,
     allApps: List<AppInfo>,
     onRun: (String) -> Unit,
     onEdit: (CustomCommand) -> Unit,
+    onHide: (CustomCommand) -> Unit,
     onAdd: () -> Unit,
     onOpenAll: () -> Unit,
-    expanded: Boolean,
-    onToggleExpanded: (() -> Unit)?,
     showAddRow: Boolean,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Commands",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.clickable(onClick = onOpenAll),
-            )
-            if (onToggleExpanded != null) {
-                IconButton(onClick = onToggleExpanded, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        if (expanded) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                        contentDescription = if (expanded) "Hide commands" else "Show commands",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
+        Text(
+            "Commands",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.clickable(onClick = onOpenAll),
+        )
+        Spacer(Modifier.height(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            commands.forEach { command ->
+                CommandListRow(
+                    command = command,
+                    app = allApps.firstOrNull { it.packageName == command.packageName },
+                    onClick = { onRun(command.id) },
+                    onEdit = { onEdit(command) },
+                    onHide = { onHide(command) },
+                )
             }
-        }
-        if (expanded) {
-            Spacer(Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                commands.forEach { command ->
-                    CommandListRow(
-                        command = command,
-                        app = allApps.firstOrNull { it.packageName == command.packageName },
-                        onClick = { onRun(command.id) },
-                        onEdit = { onEdit(command) },
-                    )
-                }
-                if (showAddRow) AddCommandRow(onClick = onAdd)
-            }
+            if (showAddRow) AddCommandRow(onClick = onAdd)
         }
     }
 }
 
 @Composable
-private fun CommandListRow(command: CustomCommand, app: AppInfo?, onClick: () -> Unit, onEdit: () -> Unit) {
+private fun CommandListRow(
+    command: CustomCommand,
+    app: AppInfo?,
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onHide: () -> Unit,
+) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
@@ -340,6 +311,14 @@ private fun CommandListRow(command: CustomCommand, app: AppInfo?, onClick: () ->
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onHide, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Filled.VisibilityOff,
+                    contentDescription = "Hide from home screen",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
             IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
                 Icon(
                     Icons.Filled.Edit,

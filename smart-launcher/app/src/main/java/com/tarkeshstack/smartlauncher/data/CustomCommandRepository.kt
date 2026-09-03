@@ -27,6 +27,7 @@ class CustomCommandRepository(private val context: Context) {
                 packageName = obj.optString("packageName", "").ifBlank { null },
                 deepLinkUri = obj.optString("deepLinkUri", "").ifBlank { null },
                 systemAction = obj.optString("systemAction", "").ifBlank { null },
+                visibleOnHome = obj.optBoolean("visibleOnHome", true),
             )
         }
     }
@@ -43,6 +44,7 @@ class CustomCommandRepository(private val context: Context) {
                     put("packageName", command.packageName ?: "")
                     put("deepLinkUri", command.deepLinkUri ?: "")
                     put("systemAction", command.systemAction ?: "")
+                    put("visibleOnHome", command.visibleOnHome)
                 },
             )
         }

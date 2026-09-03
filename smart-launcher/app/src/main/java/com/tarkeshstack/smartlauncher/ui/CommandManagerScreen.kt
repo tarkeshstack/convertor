@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,7 +38,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -75,8 +76,7 @@ fun CommandManagerScreen(
     onDelete: (String) -> Unit,
     onGetLink: (currentPackage: String?) -> Unit,
     onBack: () -> Unit,
-    showCommandsOnHome: Boolean,
-    onShowCommandsOnHomeChanged: (Boolean) -> Unit,
+    onToggleVisibleOnHome: (CustomCommand) -> Unit,
     /** Opens straight into the add-command form — used when this screen is reached via
      *  the home screen's "Add command"/edit-pencil row rather than the header icon. */
     openAddFormInitially: Boolean = false,
@@ -130,28 +130,6 @@ fun CommandManagerScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(16.dp))
-
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Show on home screen", style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                "Turn off to keep the home screen to just search and apps",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(checked = showCommandsOnHome, onCheckedChange = onShowCommandsOnHomeChanged)
-                    }
-                }
                 Spacer(Modifier.height(16.dp))
             }
 
@@ -213,6 +191,7 @@ fun CommandManagerScreen(
                                         )
                                         showAddForm = true
                                     },
+                                    onToggleVisibleOnHome = { onToggleVisibleOnHome(command) },
                                     onDelete = { onDelete(command.id) },
                                 )
                                 if (index != commands.lastIndex) {
@@ -230,7 +209,13 @@ fun CommandManagerScreen(
 }
 
 @Composable
-private fun CommandRow(command: CustomCommand, allApps: List<AppInfo>, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun CommandRow(
+    command: CustomCommand,
+    allApps: List<AppInfo>,
+    onEdit: () -> Unit,
+    onToggleVisibleOnHome: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val app = remember(command.packageName, allApps) {
         allApps.firstOrNull { it.packageName == command.packageName }
     }
@@ -270,6 +255,21 @@ private fun CommandRow(command: CustomCommand, allApps: List<AppInfo>, onEdit: (
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f),
         )
+        IconButton(onClick = onToggleVisibleOnHome) {
+            Icon(
+                if (command.visibleOnHome) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                contentDescription = if (command.visibleOnHome) {
+                    "Hide from home screen"
+                } else {
+                    "Show on home screen"
+                },
+                tint = if (command.visibleOnHome) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
         IconButton(onClick = onEdit) {
             Icon(Icons.Filled.Edit, contentDescription = "Edit command")
         }
