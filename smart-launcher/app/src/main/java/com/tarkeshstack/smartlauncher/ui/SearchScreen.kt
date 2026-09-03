@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,7 +55,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -147,7 +145,7 @@ fun SearchScreen(
                     value = state.query,
                     onValueChange = viewModel::onQueryChanged,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Search, speak, or type a command…") },
+                    placeholder = { Text("Try \"wifi\", \"youtube search\", or an app name…") },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     trailingIcon = {
                         IconButton(onClick = onMicTapped) {
@@ -190,18 +188,17 @@ fun SearchScreen(
                 }
             }
 
-            // Idle, every command shows (hidden ones dimmed, with a show/hide eye each) so
-            // the home screen doubles as a lightweight management view. While actively
-            // searching it narrows to just the visible commands linked to an app that's
-            // still in the results — a stray or dimmed command above a narrowed-down app
-            // list reads as broken, not helpful.
+            // Only commands not hidden show on the home screen, each with its own hide eye
+            // and edit pencil; a hidden one stays fully manageable (show again, edit,
+            // delete) in "Your commands" only. While actively searching it narrows further
+            // to just the ones linked to an app that's still in the results.
             val isSearching = state.query.isNotBlank()
             val visibleCommands = if (isSearching) {
                 state.customCommands.filter { command ->
                     command.visibleOnHome && state.filteredApps.any { it.packageName == command.packageName }
                 }
             } else {
-                state.customCommands
+                state.customCommands.filter { it.visibleOnHome }
             }
 
             if (!isSearching || visibleCommands.isNotEmpty()) {
@@ -217,9 +214,7 @@ fun SearchScreen(
                             }
                         },
                         onEdit = onEditCommand,
-                        onToggleVisible = { command ->
-                            viewModel.setCommandVisibleOnHome(command.id, !command.visibleOnHome)
-                        },
+                        onHide = { command -> viewModel.setCommandVisibleOnHome(command.id, false) },
                         onAdd = onAddCommand,
                         onOpenAll = onOpenCommandManager,
                         showAddRow = !isSearching,
@@ -252,18 +247,19 @@ fun SearchScreen(
     }
 }
 
-/** Every command, listed vertically — this is also the only way to reach the full "Your
- *  commands" list now (tap the "Commands" label). "Add command" always sits below the
- *  list, as its own row, rather than competing for space inside it. Each row carries its
- *  own eye icon to show/hide just that command here, dimmed while hidden, plus a small
- *  keyboard badge for one that still needs a keyword typed in before it can run. */
+/** Every command not hidden, listed vertically — this is also the only way to reach the
+ *  full "Your commands" list now (tap the "Commands" label). "Add command" always sits
+ *  below the list, as its own row, rather than competing for space inside it. Each row
+ *  carries its own eye icon to hide just that command from here (show it again, edit, or
+ *  delete it stays in "Your commands"), plus a small keyboard badge for one that still
+ *  needs a keyword typed in before it can run. */
 @Composable
 private fun CommandsQuickAccess(
     commands: List<CustomCommand>,
     allApps: List<AppInfo>,
     onRun: (CustomCommand) -> Unit,
     onEdit: (CustomCommand) -> Unit,
-    onToggleVisible: (CustomCommand) -> Unit,
+    onHide: (CustomCommand) -> Unit,
     onAdd: () -> Unit,
     onOpenAll: () -> Unit,
     showAddRow: Boolean,
@@ -283,7 +279,7 @@ private fun CommandsQuickAccess(
                     app = allApps.firstOrNull { it.packageName == command.packageName },
                     onClick = { onRun(command) },
                     onEdit = { onEdit(command) },
-                    onToggleVisible = { onToggleVisible(command) },
+                    onHide = { onHide(command) },
                 )
             }
             if (showAddRow) AddCommandRow(onClick = onAdd)
@@ -297,14 +293,14 @@ private fun CommandListRow(
     app: AppInfo?,
     onClick: () -> Unit,
     onEdit: () -> Unit,
-    onToggleVisible: () -> Unit,
+    onHide: () -> Unit,
 ) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
         tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth().alpha(if (command.visibleOnHome) 1f else 0.5f),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
@@ -345,10 +341,10 @@ private fun CommandListRow(
                     modifier = Modifier.size(16.dp),
                 )
             }
-            IconButton(onClick = onToggleVisible, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onHide, modifier = Modifier.size(32.dp)) {
                 Icon(
-                    if (command.visibleOnHome) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                    contentDescription = if (command.visibleOnHome) "Hide from home screen" else "Show on home screen",
+                    Icons.Filled.Visibility,
+                    contentDescription = "Hide from home screen",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp),
                 )

@@ -143,12 +143,6 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     ""
                                 },
-                                openAppPackage = if (command.kind == CustomCommandKind.OPEN_APP) {
-                                    command.packageName.orEmpty()
-                                } else {
-                                    ""
-                                },
-                                openAppLabel = if (command.kind == CustomCommandKind.OPEN_APP) command.label else "",
                             )
                             openAddFormOnCommands = true
                             screen = Screen.Commands

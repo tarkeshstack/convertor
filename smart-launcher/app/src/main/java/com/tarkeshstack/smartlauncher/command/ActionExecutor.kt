@@ -69,11 +69,6 @@ class ActionExecutor(
     }
 
     fun runCustomCommand(command: CustomCommand): ExecutionResult = when (command.kind) {
-        CustomCommandKind.OPEN_APP -> {
-            val pkg = command.packageName
-            if (pkg.isNullOrBlank()) ExecutionResult.Failed("This command has no app configured")
-            else openApp(pkg)
-        }
         CustomCommandKind.DEEP_LINK -> {
             val uri = command.deepLinkUri
             if (uri.isNullOrBlank()) {

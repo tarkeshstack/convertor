@@ -5,9 +5,8 @@ package com.tarkeshstack.smartlauncher.model
  *  back, instead of resetting whatever was already typed or chosen. A non-null [editingId]
  *  means saving replaces that existing command rather than creating a new one.
  *
- *  A command is exactly one of: a deep link ([deepLinkUri]/[deepLinkPackage]), a system
- *  shortcut ([systemAction]/[systemActionLabel]), or opening an app directly
- *  ([openAppPackage]/[openAppLabel]) — picking one clears the other two. */
+ *  A command is exactly one of: a deep link ([deepLinkUri]/[deepLinkPackage]) or a system
+ *  shortcut ([systemAction]/[systemActionLabel]) — picking one clears the other. */
 data class CommandDraft(
     val editingId: String? = null,
     val phrase: String = "",
@@ -17,6 +16,4 @@ data class CommandDraft(
     val justCaptured: Boolean = false,
     val systemAction: String = "",
     val systemActionLabel: String = "",
-    val openAppPackage: String = "",
-    val openAppLabel: String = "",
 )
