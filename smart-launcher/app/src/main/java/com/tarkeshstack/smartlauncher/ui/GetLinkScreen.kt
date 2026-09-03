@@ -147,8 +147,8 @@ fun GetLinkScreen(
                             Spacer(Modifier.height(12.dp))
                             Button(
                                 onClick = {
-                                    val website = AppWebsites.urlFor(app.packageName)
-                                    onBrowseForLink(website ?: app.label, app.packageName)
+                                    val website = AppWebsites.websiteFor(app.packageName, app.label)
+                                    onBrowseForLink(website, app.packageName)
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {

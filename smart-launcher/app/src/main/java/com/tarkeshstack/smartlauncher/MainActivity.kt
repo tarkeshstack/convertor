@@ -159,6 +159,8 @@ class MainActivity : ComponentActivity() {
                             screen = Screen.GetLink
                         },
                         onBack = { screen = Screen.Search },
+                        showCommandsOnHome = state.showCommandsOnHome,
+                        onShowCommandsOnHomeChanged = viewModel::setShowCommandsOnHome,
                         openAddFormInitially = openAddFormOnCommands,
                     )
                     Screen.GetLink -> GetLinkScreen(

@@ -21,8 +21,41 @@ object AppWebsites {
         "com.reddit.frontpage" to "https://www.reddit.com",
         "com.zhiliaoapp.musically" to "https://www.tiktok.com",
         "com.ubercab" to "https://www.uber.com",
+        "com.olacabs.customer" to "https://www.olacabs.com",
         "com.google.android.gm" to "https://mail.google.com",
+        "com.microsoft.office.outlook" to "https://outlook.com",
+        "com.dropbox.android" to "https://www.dropbox.com",
+        "com.google.android.apps.docs" to "https://drive.google.com",
+        "com.google.android.apps.nbu.paisa.user" to "https://pay.google.com",
+        "com.truecaller" to "https://www.truecaller.com",
+        "us.zoom.videomeetings" to "https://zoom.us",
+        "com.microsoft.teams" to "https://www.microsoft.com/microsoft-teams",
+        "com.discord" to "https://discord.com",
+        "tv.twitch.android.app" to "https://www.twitch.tv",
+        "com.quora.android" to "https://www.quora.com",
+        "com.ebay.mobile" to "https://www.ebay.com",
+        "com.walmart.android" to "https://www.walmart.com",
+        // Common Indian apps.
+        "com.myairtelapp" to "https://www.airtel.in",
+        "com.jio.myjio" to "https://www.jio.com",
+        "net.one97.paytm" to "https://paytm.com",
+        "com.phonepe.app" to "https://www.phonepe.com",
+        "com.flipkart.android" to "https://www.flipkart.com",
+        "com.myntra.android" to "https://www.myntra.com",
+        "in.swiggy.android" to "https://www.swiggy.com",
+        "com.application.zomato" to "https://www.zomato.com",
+        "com.bt.bms" to "https://in.bookmyshow.com",
     )
 
+    /** The curated mapping for a known package, when we have one. */
     fun urlFor(packageName: String?): String? = packageName?.let(byPackage::get)
+
+    /** A real website to open for any app — the curated mapping when we have it,
+     *  otherwise a best-guess ".com" domain built from the app's own name, so "Get a
+     *  link" always lands on a real site instead of falling back to a web search. */
+    fun websiteFor(packageName: String?, label: String): String =
+        urlFor(packageName) ?: "https://www.${guessDomain(label)}.com"
+
+    private fun guessDomain(label: String): String =
+        label.lowercase().replace(Regex("[^a-z0-9]+"), "")
 }

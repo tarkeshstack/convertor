@@ -65,8 +65,6 @@ import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 
-private const val QUICK_COMMANDS_LIMIT = 4
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
@@ -196,7 +194,7 @@ fun SearchScreen(
                 state.customCommands
             }
 
-            if (!isSearching || visibleCommands.isNotEmpty()) {
+            if (state.showCommandsOnHome && (!isSearching || visibleCommands.isNotEmpty())) {
                 item {
                     CommandsQuickAccess(
                         commands = visibleCommands,
@@ -210,8 +208,12 @@ fun SearchScreen(
                 }
             }
 
-            items(state.filteredApps, key = { it.packageName }) { app ->
-                AppRow(app = app, onClick = { viewModel.launchApp(app) })
+            // The app list itself is search-only now — nothing is listed until you type,
+            // so the home screen isn't just the entire installed-app list by default.
+            if (isSearching) {
+                items(state.filteredApps, key = { it.packageName }) { app ->
+                    AppRow(app = app, onClick = { viewModel.launchApp(app) })
+                }
             }
 
             item { Spacer(Modifier.height(16.dp)) }
@@ -219,8 +221,8 @@ fun SearchScreen(
     }
 }
 
-/** Up to a few saved commands, listed vertically right on the home screen — this is also
- *  the only way to reach the full "Your commands" list now (tap the "Commands" label).
+/** All saved commands, listed vertically right on the home screen — this is also the
+ *  only way to reach the full "Your commands" list now (tap the "Commands" label).
  *  "Add command" always sits below the list, as its own row, rather than competing for
  *  space inside it. */
 @Composable
@@ -242,7 +244,7 @@ private fun CommandsQuickAccess(
         )
         Spacer(Modifier.height(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            commands.take(QUICK_COMMANDS_LIMIT).forEach { command ->
+            commands.forEach { command ->
                 CommandListRow(
                     command = command,
                     app = allApps.firstOrNull { it.packageName == command.packageName },

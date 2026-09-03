@@ -9,10 +9,12 @@ import com.tarkeshstack.smartlauncher.command.ExecutionResult
 import com.tarkeshstack.smartlauncher.data.ContactsRepository
 import com.tarkeshstack.smartlauncher.data.CustomCommandRepository
 import com.tarkeshstack.smartlauncher.data.InstalledAppsRepository
+import com.tarkeshstack.smartlauncher.data.SettingsRepository
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.CustomCommand
+import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.model.ParsedCommand
 import com.tarkeshstack.smartlauncher.model.SpeechRequest
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class UiState(
     val query: String = "",
@@ -32,6 +35,7 @@ data class UiState(
     val isListening: Boolean = false,
     val pendingCapturedLink: CapturedLink? = null,
     val pendingSpeech: SpeechRequest? = null,
+    val showCommandsOnHome: Boolean = true,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,17 +43,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val appsRepo = InstalledAppsRepository(application)
     private val contactsRepo = ContactsRepository(application)
     private val customCommandsRepo = CustomCommandRepository(application)
+    private val settingsRepo = SettingsRepository(application)
     private val executor = ActionExecutor(application, appsRepo, contactsRepo)
 
-    private val _uiState = MutableStateFlow(UiState())
+    private val _uiState = MutableStateFlow(UiState(showCommandsOnHome = settingsRepo.showCommandsOnHome()))
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
             val apps = appsRepo.loadLaunchableApps()
-            val customCommands = customCommandsRepo.loadAll()
+            var customCommands = customCommandsRepo.loadAll()
+            if (customCommands.isEmpty()) {
+                // First run (or everything was deleted) — seed a couple of handy
+                // defaults instead of an empty list, rather than presuming the user
+                // wants to build every command from scratch.
+                customCommands = defaultCommands()
+                customCommandsRepo.saveAll(customCommands)
+            }
             _uiState.update { it.copy(allApps = apps, filteredApps = apps, customCommands = customCommands) }
         }
+    }
+
+    private fun defaultCommands(): List<CustomCommand> = listOf(
+        CustomCommand(
+            id = UUID.randomUUID().toString(),
+            phrase = "wifi",
+            label = "Wi-Fi settings",
+            kind = CustomCommandKind.SYSTEM_SHORTCUT,
+            packageName = null,
+            deepLinkUri = null,
+            systemAction = "android.settings.WIFI_SETTINGS",
+        ),
+        CustomCommand(
+            id = UUID.randomUUID().toString(),
+            phrase = "change wallpaper",
+            label = "Change wallpaper",
+            kind = CustomCommandKind.SYSTEM_SHORTCUT,
+            packageName = null,
+            deepLinkUri = null,
+            systemAction = "android.intent.action.SET_WALLPAPER",
+        ),
+        CustomCommand(
+            id = UUID.randomUUID().toString(),
+            phrase = "youtube soothing instrumental",
+            label = "YouTube",
+            kind = CustomCommandKind.DEEP_LINK,
+            packageName = "com.google.android.youtube",
+            deepLinkUri = "https://www.youtube.com/results?search_query=soothing+instrumental",
+            systemAction = null,
+        ),
+    )
+
+    fun setShowCommandsOnHome(show: Boolean) {
+        settingsRepo.setShowCommandsOnHome(show)
+        _uiState.update { it.copy(showCommandsOnHome = show) }
     }
 
     fun onQueryChanged(text: String) {
