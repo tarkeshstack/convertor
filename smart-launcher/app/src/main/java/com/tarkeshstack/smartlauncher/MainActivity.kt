@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.tarkeshstack.smartlauncher.capture.ShareIntentParser
 import com.tarkeshstack.smartlauncher.model.CapturedLink
+import com.tarkeshstack.smartlauncher.model.CommandDraft
 import com.tarkeshstack.smartlauncher.ui.BrowseForLinkScreen
 import com.tarkeshstack.smartlauncher.ui.CommandManagerScreen
 import com.tarkeshstack.smartlauncher.ui.GetLinkScreen
@@ -76,7 +77,12 @@ class MainActivity : ComponentActivity() {
                 var screen by remember { mutableStateOf(Screen.Search) }
                 var browseQuery by remember { mutableStateOf<String?>(null) }
                 var browseSourcePackage by remember { mutableStateOf<String?>(null) }
+                var getLinkInitialPackage by remember { mutableStateOf<String?>(null) }
                 var openAddFormOnCommands by remember { mutableStateOf(false) }
+                // Hoisted above the Commands/GetLink/Browse screens so an in-progress
+                // add/edit survives navigating away to "Get a link" and back instead of
+                // resetting.
+                var commandDraft by remember { mutableStateOf(CommandDraft()) }
 
                 // A link shared in from another app should take you straight to where
                 // you finish turning it into a command, not leave you on the search screen.
@@ -111,10 +117,22 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onOpenCommandManager = {
+                            commandDraft = CommandDraft()
                             openAddFormOnCommands = false
                             screen = Screen.Commands
                         },
                         onAddCommand = {
+                            commandDraft = CommandDraft()
+                            openAddFormOnCommands = true
+                            screen = Screen.Commands
+                        },
+                        onEditCommand = { command ->
+                            commandDraft = CommandDraft(
+                                editingId = command.id,
+                                phrase = command.phrase,
+                                deepLinkUri = command.deepLinkUri.orEmpty(),
+                                deepLinkPackage = command.packageName.orEmpty(),
+                            )
                             openAddFormOnCommands = true
                             screen = Screen.Commands
                         },
@@ -125,14 +143,20 @@ class MainActivity : ComponentActivity() {
                         allApps = state.allApps,
                         pendingCapturedLink = state.pendingCapturedLink,
                         onConsumeCapturedLink = viewModel::consumeCapturedLink,
-                        onAdd = viewModel::addCustomCommand,
+                        draft = commandDraft,
+                        onDraftChanged = { commandDraft = it },
+                        onSave = viewModel::saveCustomCommand,
                         onDelete = viewModel::deleteCustomCommand,
-                        onGetLink = { screen = Screen.GetLink },
+                        onGetLink = { currentPackage ->
+                            getLinkInitialPackage = currentPackage
+                            screen = Screen.GetLink
+                        },
                         onBack = { screen = Screen.Search },
                         openAddFormInitially = openAddFormOnCommands,
                     )
                     Screen.GetLink -> GetLinkScreen(
                         allApps = state.allApps,
+                        initialSelectedPackage = getLinkInitialPackage,
                         onLinkChosen = { link ->
                             viewModel.onLinkCaptured(link)
                             screen = Screen.Commands

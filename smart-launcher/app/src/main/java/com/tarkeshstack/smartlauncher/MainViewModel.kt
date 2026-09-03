@@ -139,9 +139,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addCustomCommand(command: CustomCommand) {
+    /** Adds a new command, or replaces the existing one with the same id — the add and
+     *  edit forms are the same UI, so saving just needs to know which case it is. */
+    fun saveCustomCommand(command: CustomCommand) {
         viewModelScope.launch {
-            val updated = _uiState.value.customCommands + command
+            val existing = _uiState.value.customCommands
+            val updated = if (existing.any { it.id == command.id }) {
+                existing.map { if (it.id == command.id) command else it }
+            } else {
+                existing + command
+            }
             customCommandsRepo.saveAll(updated)
             _uiState.update { it.copy(customCommands = updated) }
         }

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -29,7 +30,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CapturedLink
+import com.tarkeshstack.smartlauncher.model.CommandDraft
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import java.util.UUID
@@ -63,12 +64,14 @@ fun CommandManagerScreen(
     allApps: List<AppInfo>,
     pendingCapturedLink: CapturedLink?,
     onConsumeCapturedLink: () -> Unit,
-    onAdd: (CustomCommand) -> Unit,
+    draft: CommandDraft,
+    onDraftChanged: (CommandDraft) -> Unit,
+    onSave: (CustomCommand) -> Unit,
     onDelete: (String) -> Unit,
-    onGetLink: () -> Unit,
+    onGetLink: (currentPackage: String?) -> Unit,
     onBack: () -> Unit,
     /** Opens straight into the add-command form — used when this screen is reached via
-     *  the home screen's "Add command" chip/corner button rather than the header icon. */
+     *  the home screen's "Add command"/edit-pencil row rather than the header icon. */
     openAddFormInitially: Boolean = false,
 ) {
     var showAddForm by remember { mutableStateOf(openAddFormInitially) }
@@ -82,14 +85,17 @@ fun CommandManagerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Your commands") },
+                title = { Text(if (draft.editingId != null) "Edit command" else "Your commands") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showAddForm = !showAddForm }) {
+                    IconButton(onClick = {
+                        showAddForm = !showAddForm
+                        if (!showAddForm) onDraftChanged(CommandDraft())
+                    }) {
                         Icon(
                             if (showAddForm) Icons.Filled.Close else Icons.Filled.Add,
                             contentDescription = if (showAddForm) "Close" else "Add a command",
@@ -126,8 +132,10 @@ fun CommandManagerScreen(
                         allApps = allApps,
                         pendingCapturedLink = pendingCapturedLink,
                         onConsumeCapturedLink = onConsumeCapturedLink,
-                        onAdd = { command ->
-                            onAdd(command)
+                        draft = draft,
+                        onDraftChanged = onDraftChanged,
+                        onSave = { command ->
+                            onSave(command)
                             showAddForm = false
                         },
                         onGetLink = onGetLink,
@@ -156,6 +164,17 @@ fun CommandManagerScreen(
                                 CommandRow(
                                     command = command,
                                     allApps = allApps,
+                                    onEdit = {
+                                        onDraftChanged(
+                                            CommandDraft(
+                                                editingId = command.id,
+                                                phrase = command.phrase,
+                                                deepLinkUri = command.deepLinkUri.orEmpty(),
+                                                deepLinkPackage = command.packageName.orEmpty(),
+                                            ),
+                                        )
+                                        showAddForm = true
+                                    },
                                     onDelete = { onDelete(command.id) },
                                 )
                                 if (index != commands.lastIndex) {
@@ -173,7 +192,7 @@ fun CommandManagerScreen(
 }
 
 @Composable
-private fun CommandRow(command: CustomCommand, allApps: List<AppInfo>, onDelete: () -> Unit) {
+private fun CommandRow(command: CustomCommand, allApps: List<AppInfo>, onEdit: () -> Unit, onDelete: () -> Unit) {
     val app = remember(command.packageName, allApps) {
         allApps.firstOrNull { it.packageName == command.packageName }
     }
@@ -208,6 +227,9 @@ private fun CommandRow(command: CustomCommand, allApps: List<AppInfo>, onDelete:
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f),
         )
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Filled.Edit, contentDescription = "Edit command")
+        }
         IconButton(onClick = onDelete) {
             Icon(Icons.Filled.Delete, contentDescription = "Delete command")
         }
@@ -219,30 +241,30 @@ private fun AddCommandForm(
     allApps: List<AppInfo>,
     pendingCapturedLink: CapturedLink?,
     onConsumeCapturedLink: () -> Unit,
-    onAdd: (CustomCommand) -> Unit,
-    onGetLink: () -> Unit,
+    draft: CommandDraft,
+    onDraftChanged: (CommandDraft) -> Unit,
+    onSave: (CustomCommand) -> Unit,
+    onGetLink: (currentPackage: String?) -> Unit,
 ) {
-    var phrase by remember { mutableStateOf("") }
-    var deepLinkUri by remember { mutableStateOf("") }
-    var deepLinkPackage by remember { mutableStateOf("") }
-    var placeholderValue by remember { mutableStateOf("") }
-    var justCaptured by remember { mutableStateOf(false) }
-
     // A link captured on the "Get a link" screen lands here pre-filled.
     LaunchedEffect(pendingCapturedLink) {
         val captured = pendingCapturedLink ?: return@LaunchedEffect
-        deepLinkUri = captured.uri
-        deepLinkPackage = captured.sourcePackage.orEmpty()
-        placeholderValue = ""
-        justCaptured = true
+        onDraftChanged(
+            draft.copy(
+                deepLinkUri = captured.uri,
+                deepLinkPackage = captured.sourcePackage.orEmpty(),
+                placeholderValue = "",
+                justCaptured = true,
+            ),
+        )
         onConsumeCapturedLink()
     }
 
-    val hasPlaceholder = deepLinkUri.contains(PLACEHOLDER)
-    val resolvedDeepLinkUri = if (hasPlaceholder && placeholderValue.isNotBlank()) {
-        deepLinkUri.replace(PLACEHOLDER, Uri.encode(placeholderValue.trim()))
+    val hasPlaceholder = draft.deepLinkUri.contains(PLACEHOLDER)
+    val resolvedDeepLinkUri = if (hasPlaceholder && draft.placeholderValue.isNotBlank()) {
+        draft.deepLinkUri.replace(PLACEHOLDER, Uri.encode(draft.placeholderValue.trim()))
     } else {
-        deepLinkUri
+        draft.deepLinkUri
     }
 
     Card(
@@ -251,10 +273,13 @@ private fun AddCommandForm(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Add a command", style = MaterialTheme.typography.titleMedium)
+            Text(
+                if (draft.editingId != null) "Edit command" else "Add a command",
+                style = MaterialTheme.typography.titleMedium,
+            )
             Spacer(Modifier.height(12.dp))
 
-            if (justCaptured) {
+            if (draft.justCaptured) {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -268,8 +293,8 @@ private fun AddCommandForm(
             }
 
             OutlinedTextField(
-                value = phrase,
-                onValueChange = { phrase = it },
+                value = draft.phrase,
+                onValueChange = { onDraftChanged(draft.copy(phrase = it)) },
                 label = { Text("Trigger phrase (what you'll type or say)") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -279,7 +304,7 @@ private fun AddCommandForm(
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.primaryContainer,
-                onClick = onGetLink,
+                onClick = { onGetLink(draft.deepLinkPackage.trim().ifBlank { null }) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(
@@ -293,7 +318,7 @@ private fun AddCommandForm(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        if (deepLinkUri.isBlank()) "Get a link" else "Change link",
+                        if (draft.deepLinkUri.isBlank()) "Get a link" else "Change link",
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f),
@@ -306,10 +331,10 @@ private fun AddCommandForm(
                 }
             }
 
-            if (deepLinkUri.isNotBlank()) {
+            if (draft.deepLinkUri.isNotBlank()) {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    deepLinkUri,
+                    draft.deepLinkUri,
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.secondary,
@@ -318,14 +343,14 @@ private fun AddCommandForm(
                 if (hasPlaceholder) {
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
-                        value = placeholderValue,
-                        onValueChange = { placeholderValue = it },
+                        value = draft.placeholderValue,
+                        onValueChange = { onDraftChanged(draft.copy(placeholderValue = it)) },
                         label = { Text("Value to fill in (replaces $PLACEHOLDER in the link)") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )
                     Text(
-                        if (placeholderValue.isNotBlank()) {
+                        if (draft.placeholderValue.isNotBlank()) {
                             "Will save as: $resolvedDeepLinkUri"
                         } else {
                             "Type a value above — you never need to edit the link text itself."
@@ -335,57 +360,38 @@ private fun AddCommandForm(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
-
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Target app package (optional) — restricts which app opens the link",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                    OutlinedTextField(
-                        value = deepLinkPackage,
-                        onValueChange = { deepLinkPackage = it },
-                        placeholder = { Text("e.g. com.example.app") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                    )
-                }
             }
 
             Spacer(Modifier.height(16.dp))
 
-            val canSave = phrase.isNotBlank() &&
-                deepLinkUri.isNotBlank() && (!hasPlaceholder || placeholderValue.isNotBlank())
+            val canSave = draft.phrase.isNotBlank() &&
+                draft.deepLinkUri.isNotBlank() && (!hasPlaceholder || draft.placeholderValue.isNotBlank())
 
             Button(
                 onClick = {
                     // The label is the linked app's real name when we know it — from the
-                    // target package — falling back to the trigger phrase itself, since
-                    // there's no separate "display name" field to type one into.
-                    val resolvedLabel = allApps.firstOrNull { it.packageName == deepLinkPackage.trim() }
+                    // app selected on "Get a link" — falling back to the trigger phrase
+                    // itself, since there's no separate "display name" field to type one
+                    // into and the target app is always whichever one was selected there.
+                    val resolvedLabel = allApps.firstOrNull { it.packageName == draft.deepLinkPackage.trim() }
                         ?.label
-                        ?: phrase.trim().replaceFirstChar { it.uppercaseChar() }
-                    onAdd(
+                        ?: draft.phrase.trim().replaceFirstChar { it.uppercaseChar() }
+                    onSave(
                         CustomCommand(
-                            id = UUID.randomUUID().toString(),
-                            phrase = phrase.trim(),
+                            id = draft.editingId ?: UUID.randomUUID().toString(),
+                            phrase = draft.phrase.trim(),
                             label = resolvedLabel,
                             kind = CustomCommandKind.DEEP_LINK,
-                            packageName = deepLinkPackage.trim().ifBlank { null },
+                            packageName = draft.deepLinkPackage.trim().ifBlank { null },
                             deepLinkUri = resolvedDeepLinkUri.trim(),
                         ),
                     )
-                    phrase = ""
-                    deepLinkUri = ""
-                    deepLinkPackage = ""
-                    placeholderValue = ""
-                    justCaptured = false
+                    onDraftChanged(CommandDraft())
                 },
                 enabled = canSave,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Save command")
+                Text(if (draft.editingId != null) "Save changes" else "Save command")
             }
         }
     }

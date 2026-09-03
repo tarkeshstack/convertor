@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -74,6 +74,7 @@ fun SearchScreen(
     onMicTapped: () -> Unit,
     onOpenCommandManager: () -> Unit,
     onAddCommand: () -> Unit,
+    onEditCommand: (CustomCommand) -> Unit,
     onBack: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -185,6 +186,7 @@ fun SearchScreen(
                     commands = state.customCommands,
                     allApps = state.allApps,
                     onRun = viewModel::runCustomCommandById,
+                    onEdit = onEditCommand,
                     onAdd = onAddCommand,
                     onOpenAll = onOpenCommandManager,
                 )
@@ -199,83 +201,66 @@ fun SearchScreen(
     }
 }
 
-/** Up to a few saved commands, one tap away right on the home screen — this is also the
- *  only way to reach the full "Your commands" list now (tap the "Commands" label). With
- *  4 or fewer, an "Add" chip sits inline at the end of the row; once there are more than
- *  that, the row only shows the first few and the add action moves to a small button in
- *  the section's top-right corner instead of scrolling off with the rest. */
+/** Up to a few saved commands, listed vertically right on the home screen — this is also
+ *  the only way to reach the full "Your commands" list now (tap the "Commands" label).
+ *  "Add command" always sits below the list, as its own row, rather than competing for
+ *  space inside it. */
 @Composable
 private fun CommandsQuickAccess(
     commands: List<CustomCommand>,
     allApps: List<AppInfo>,
     onRun: (String) -> Unit,
+    onEdit: (CustomCommand) -> Unit,
     onAdd: () -> Unit,
     onOpenAll: () -> Unit,
 ) {
-    val overflowing = commands.size > QUICK_COMMANDS_LIMIT
-
     Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Commands",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.clickable(onClick = onOpenAll),
-            )
-            if (overflowing) {
-                IconButton(onClick = onAdd, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = "Add a command",
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-        }
+        Text(
+            "Commands",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.clickable(onClick = onOpenAll),
+        )
         Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(commands.take(QUICK_COMMANDS_LIMIT), key = { it.id }) { command ->
-                CommandChip(
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            commands.take(QUICK_COMMANDS_LIMIT).forEach { command ->
+                CommandListRow(
                     command = command,
                     app = allApps.firstOrNull { it.packageName == command.packageName },
                     onClick = { onRun(command.id) },
+                    onEdit = { onEdit(command) },
                 )
             }
-            if (!overflowing) {
-                item { AddCommandChip(onClick = onAdd) }
-            }
+            AddCommandRow(onClick = onAdd)
         }
     }
 }
 
 @Composable
-private fun CommandChip(command: CustomCommand, app: AppInfo?, onClick: () -> Unit) {
+private fun CommandListRow(command: CustomCommand, app: AppInfo?, onClick: () -> Unit, onEdit: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (app != null) {
                 Image(
                     bitmap = remember(app.packageName) { app.icon.toBitmap(width = 48, height = 48).asImageBitmap() },
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(20.dp),
                 )
             } else {
                 Icon(
                     Icons.Filled.Link,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(18.dp),
                 )
             }
             Text(
@@ -283,28 +268,38 @@ private fun CommandChip(command: CustomCommand, app: AppInfo?, onClick: () -> Un
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = "Edit command",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun AddCommandChip(onClick: () -> Unit) {
+private fun AddCommandRow(onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(
                 Icons.Filled.Add,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
             )
             Text(
                 "Add command",

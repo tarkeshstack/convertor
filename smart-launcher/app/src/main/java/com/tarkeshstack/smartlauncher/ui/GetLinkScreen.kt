@@ -51,11 +51,16 @@ import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 @Composable
 fun GetLinkScreen(
     allApps: List<AppInfo>,
+    /** When set (e.g. re-opening via "Change link" for a command that already has one),
+     *  starts with that app already selected instead of restarting the app-picking step. */
+    initialSelectedPackage: String? = null,
     onLinkChosen: (CapturedLink) -> Unit,
     onBrowseForLink: (initialQuery: String?, sourcePackage: String?) -> Unit,
     onBack: () -> Unit,
 ) {
-    var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
+    var selectedApp by remember {
+        mutableStateOf(allApps.firstOrNull { it.packageName == initialSelectedPackage })
+    }
     var appPickerOpen by remember { mutableStateOf(false) }
 
     val suggestionsForApp = remember(selectedApp) {
@@ -86,13 +91,6 @@ fun GetLinkScreen(
                 Card(shape = RoundedCornerShape(18.dp)) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Which app?", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Search for it, then use a popular link or add a new one — " +
-                                "all without losing your place here.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
                         Spacer(Modifier.height(12.dp))
 
                         OutlinedButton(
