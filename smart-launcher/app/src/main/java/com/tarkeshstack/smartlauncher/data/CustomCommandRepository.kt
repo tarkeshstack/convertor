@@ -26,6 +26,7 @@ class CustomCommandRepository(private val context: Context) {
                 kind = CustomCommandKind.valueOf(obj.getString("kind")),
                 packageName = obj.optString("packageName", "").ifBlank { null },
                 deepLinkUri = obj.optString("deepLinkUri", "").ifBlank { null },
+                systemAction = obj.optString("systemAction", "").ifBlank { null },
             )
         }
     }
@@ -41,6 +42,7 @@ class CustomCommandRepository(private val context: Context) {
                     put("kind", command.kind.name)
                     put("packageName", command.packageName ?: "")
                     put("deepLinkUri", command.deepLinkUri ?: "")
+                    put("systemAction", command.systemAction ?: "")
                 },
             )
         }

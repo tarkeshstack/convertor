@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.tarkeshstack.smartlauncher.model.AppInfo
+import com.tarkeshstack.smartlauncher.model.AppWebsites
 import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestion
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
@@ -145,12 +146,15 @@ fun GetLinkScreen(
                             }
                             Spacer(Modifier.height(12.dp))
                             Button(
-                                onClick = { onBrowseForLink(app.label, app.packageName) },
+                                onClick = {
+                                    val website = AppWebsites.urlFor(app.packageName)
+                                    onBrowseForLink(website ?: app.label, app.packageName)
+                                },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Icon(Icons.Filled.Public, contentDescription = null)
                                 Spacer(Modifier.width(6.dp))
-                                Text("Add a new link")
+                                Text("Open ${app.label}'s website")
                             }
                         }
                     }

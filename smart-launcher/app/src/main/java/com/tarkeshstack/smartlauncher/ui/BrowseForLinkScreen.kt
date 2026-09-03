@@ -41,13 +41,20 @@ import androidx.compose.ui.viewinterop.AndroidView
 fun BrowseForLinkScreen(
     onCapture: (String) -> Unit,
     onBack: () -> Unit,
-    /** When set (e.g. an app's name), starts already searching for that instead of a
-     *  blank Google homepage — so picking an app elsewhere in the app lands you here
-     *  already looking for its site, without ever leaving Smart Launcher. */
+    /** When set, starts already there instead of a blank Google homepage — a direct
+     *  https:// URL (a known app's real website) opens straight to it, otherwise (e.g. a
+     *  plain app name) falls back to searching for it, so picking an app elsewhere in the
+     *  app lands you here already looking for its site, without ever leaving Smart Launcher. */
     initialQuery: String? = null,
 ) {
     var addressBarText by remember {
-        mutableStateOf(initialQuery?.let { "$it official site" } ?: "https://www.google.com")
+        mutableStateOf(
+            when {
+                initialQuery == null -> "https://www.google.com"
+                initialQuery.startsWith("http://") || initialQuery.startsWith("https://") -> initialQuery
+                else -> "$initialQuery official site"
+            },
+        )
     }
     var webView by remember { mutableStateOf<WebView?>(null) }
 

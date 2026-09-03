@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,6 +63,7 @@ import com.tarkeshstack.smartlauncher.UiState
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CustomCommand
+import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 
 private const val QUICK_COMMANDS_LIMIT = 4
 
@@ -181,15 +183,31 @@ fun SearchScreen(
                 }
             }
 
-            item {
-                CommandsQuickAccess(
-                    commands = state.customCommands,
-                    allApps = state.allApps,
-                    onRun = viewModel::runCustomCommandById,
-                    onEdit = onEditCommand,
-                    onAdd = onAddCommand,
-                    onOpenAll = onOpenCommandManager,
-                )
+            // While actively searching, only commands linked to an app that's still in
+            // the results belong here — a stray unrelated command sitting above a
+            // narrowed-down app list reads as broken, not helpful. With nothing typed,
+            // the usual full quick-access list (and the way to add to it) shows instead.
+            val isSearching = state.query.isNotBlank()
+            val visibleCommands = if (isSearching) {
+                state.customCommands.filter { command ->
+                    state.filteredApps.any { it.packageName == command.packageName }
+                }
+            } else {
+                state.customCommands
+            }
+
+            if (!isSearching || visibleCommands.isNotEmpty()) {
+                item {
+                    CommandsQuickAccess(
+                        commands = visibleCommands,
+                        allApps = state.allApps,
+                        onRun = viewModel::runCustomCommandById,
+                        onEdit = onEditCommand,
+                        onAdd = onAddCommand,
+                        onOpenAll = onOpenCommandManager,
+                        showAddRow = !isSearching,
+                    )
+                }
             }
 
             items(state.filteredApps, key = { it.packageName }) { app ->
@@ -213,6 +231,7 @@ private fun CommandsQuickAccess(
     onEdit: (CustomCommand) -> Unit,
     onAdd: () -> Unit,
     onOpenAll: () -> Unit,
+    showAddRow: Boolean,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp)) {
         Text(
@@ -231,7 +250,7 @@ private fun CommandsQuickAccess(
                     onEdit = { onEdit(command) },
                 )
             }
-            AddCommandRow(onClick = onAdd)
+            if (showAddRow) AddCommandRow(onClick = onAdd)
         }
     }
 }
@@ -242,6 +261,7 @@ private fun CommandListRow(command: CustomCommand, app: AppInfo?, onClick: () ->
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
@@ -249,14 +269,19 @@ private fun CommandListRow(command: CustomCommand, app: AppInfo?, onClick: () ->
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (app != null) {
-                Image(
+            when {
+                app != null -> Image(
                     bitmap = remember(app.packageName) { app.icon.toBitmap(width = 48, height = 48).asImageBitmap() },
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
                 )
-            } else {
-                Icon(
+                command.kind == CustomCommandKind.SYSTEM_SHORTCUT -> Icon(
+                    Icons.Filled.Settings,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(18.dp),
+                )
+                else -> Icon(
                     Icons.Filled.Link,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
@@ -288,6 +313,7 @@ private fun AddCommandRow(onClick: () -> Unit) {
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.primaryContainer,
+        tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(

@@ -2,6 +2,7 @@ package com.tarkeshstack.smartlauncher.ui
 
 import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -44,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -118,8 +122,8 @@ fun CommandManagerScreen(
             item {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Deep-link shortcuts only — a plain app name already opens it, no " +
-                        "command needed for that.",
+                    "Shortcuts only — a plain app name already opens it, no command " +
+                        "needed for that.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -158,7 +162,10 @@ fun CommandManagerScreen(
                 }
             } else {
                 item {
-                    Card(shape = RoundedCornerShape(18.dp)) {
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    ) {
                         Column {
                             commands.forEachIndexed { index, command ->
                                 CommandRow(
@@ -171,6 +178,12 @@ fun CommandManagerScreen(
                                                 phrase = command.phrase,
                                                 deepLinkUri = command.deepLinkUri.orEmpty(),
                                                 deepLinkPackage = command.packageName.orEmpty(),
+                                                systemAction = command.systemAction.orEmpty(),
+                                                systemActionLabel = if (command.kind == CustomCommandKind.SYSTEM_SHORTCUT) {
+                                                    command.label
+                                                } else {
+                                                    ""
+                                                },
                                             ),
                                         )
                                         showAddForm = true
@@ -205,14 +218,19 @@ private fun CommandRow(command: CustomCommand, allApps: List<AppInfo>, onEdit: (
             color = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.width(32.dp).height(32.dp),
         ) {
-            if (app != null) {
-                Image(
+            when {
+                app != null -> Image(
                     bitmap = remember(app.packageName) { app.icon.toBitmap(width = 64, height = 64).asImageBitmap() },
                     contentDescription = null,
                     modifier = Modifier.padding(4.dp),
                 )
-            } else {
-                Icon(
+                command.kind == CustomCommandKind.SYSTEM_SHORTCUT -> Icon(
+                    Icons.Filled.Settings,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(7.dp),
+                )
+                else -> Icon(
                     Icons.Filled.Link,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -246,7 +264,10 @@ private fun AddCommandForm(
     onSave: (CustomCommand) -> Unit,
     onGetLink: (currentPackage: String?) -> Unit,
 ) {
-    // A link captured on the "Get a link" screen lands here pre-filled.
+    var shortcutPickerOpen by remember { mutableStateOf(false) }
+
+    // A link captured on the "Get a link" screen lands here pre-filled, and always wins
+    // over any system shortcut previously chosen in this same draft.
     LaunchedEffect(pendingCapturedLink) {
         val captured = pendingCapturedLink ?: return@LaunchedEffect
         onDraftChanged(
@@ -255,6 +276,8 @@ private fun AddCommandForm(
                 deepLinkPackage = captured.sourcePackage.orEmpty(),
                 placeholderValue = "",
                 justCaptured = true,
+                systemAction = "",
+                systemActionLabel = "",
             ),
         )
         onConsumeCapturedLink()
@@ -266,11 +289,12 @@ private fun AddCommandForm(
     } else {
         draft.deepLinkUri
     }
+    val hasShortcut = draft.systemAction.isNotBlank()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -301,34 +325,28 @@ private fun AddCommandForm(
             )
             Spacer(Modifier.height(16.dp))
 
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                onClick = { onGetLink(draft.deepLinkPackage.trim().ifBlank { null }) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Filled.Link,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        if (draft.deepLinkUri.isBlank()) "Get a link" else "Change link",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                }
+            Text(
+                "What should it do?",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Filled.Link,
+                    label = if (draft.deepLinkUri.isBlank()) "Get a link" else "Change link",
+                    selected = draft.deepLinkUri.isNotBlank(),
+                    onClick = { onGetLink(draft.deepLinkPackage.trim().ifBlank { null }) },
+                )
+                ChoiceCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Filled.Settings,
+                    label = if (hasShortcut) "Change shortcut" else "System shortcut",
+                    selected = hasShortcut,
+                    onClick = { shortcutPickerOpen = true },
+                )
             }
 
             if (draft.deepLinkUri.isNotBlank()) {
@@ -360,30 +378,55 @@ private fun AddCommandForm(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
+            } else if (hasShortcut) {
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Settings,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        draft.systemActionLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
             }
 
             Spacer(Modifier.height(16.dp))
 
             val canSave = draft.phrase.isNotBlank() &&
-                draft.deepLinkUri.isNotBlank() && (!hasPlaceholder || draft.placeholderValue.isNotBlank())
+                (draft.deepLinkUri.isNotBlank() || hasShortcut) &&
+                (!hasPlaceholder || draft.placeholderValue.isNotBlank())
 
             Button(
                 onClick = {
+                    val kind = if (hasShortcut) CustomCommandKind.SYSTEM_SHORTCUT else CustomCommandKind.DEEP_LINK
                     // The label is the linked app's real name when we know it — from the
-                    // app selected on "Get a link" — falling back to the trigger phrase
-                    // itself, since there's no separate "display name" field to type one
-                    // into and the target app is always whichever one was selected there.
-                    val resolvedLabel = allApps.firstOrNull { it.packageName == draft.deepLinkPackage.trim() }
-                        ?.label
-                        ?: draft.phrase.trim().replaceFirstChar { it.uppercaseChar() }
+                    // app selected on "Get a link" — or the shortcut's own name, falling
+                    // back to the trigger phrase itself, since there's no separate
+                    // "display name" field and the target is always whatever was picked.
+                    val resolvedLabel = when {
+                        kind == CustomCommandKind.SYSTEM_SHORTCUT -> draft.systemActionLabel
+                        else -> allApps.firstOrNull { it.packageName == draft.deepLinkPackage.trim() }?.label
+                            ?: draft.phrase.trim().replaceFirstChar { it.uppercaseChar() }
+                    }
                     onSave(
                         CustomCommand(
                             id = draft.editingId ?: UUID.randomUUID().toString(),
                             phrase = draft.phrase.trim(),
                             label = resolvedLabel,
-                            kind = CustomCommandKind.DEEP_LINK,
-                            packageName = draft.deepLinkPackage.trim().ifBlank { null },
-                            deepLinkUri = resolvedDeepLinkUri.trim(),
+                            kind = kind,
+                            packageName = if (kind == CustomCommandKind.DEEP_LINK) {
+                                draft.deepLinkPackage.trim().ifBlank { null }
+                            } else {
+                                null
+                            },
+                            deepLinkUri = if (kind == CustomCommandKind.DEEP_LINK) resolvedDeepLinkUri.trim() else null,
+                            systemAction = if (kind == CustomCommandKind.SYSTEM_SHORTCUT) draft.systemAction else null,
                         ),
                     )
                     onDraftChanged(CommandDraft())
@@ -392,6 +435,78 @@ private fun AddCommandForm(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(if (draft.editingId != null) "Save changes" else "Save command")
+            }
+        }
+    }
+
+    if (shortcutPickerOpen) {
+        SystemShortcutPickerDialog(
+            onDismiss = { shortcutPickerOpen = false },
+            onSelect = { shortcut ->
+                onDraftChanged(
+                    draft.copy(
+                        systemAction = shortcut.action,
+                        systemActionLabel = shortcut.label,
+                        deepLinkUri = "",
+                        deepLinkPackage = "",
+                        placeholderValue = "",
+                        justCaptured = false,
+                    ),
+                )
+                shortcutPickerOpen = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun ChoiceCard(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        onClick = onClick,
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = if (selected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = if (selected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
     }

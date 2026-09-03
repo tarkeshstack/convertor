@@ -84,6 +84,15 @@ class ActionExecutor(
                 viewDeepLink(uri, command.packageName)
             }
         }
+        CustomCommandKind.SYSTEM_SHORTCUT -> {
+            val action = command.systemAction
+            if (action.isNullOrBlank()) {
+                ExecutionResult.Failed("This command has no system shortcut configured")
+            } else {
+                start(Intent(action))
+                ExecutionResult.Launched
+            }
+        }
     }
 
     private fun bookRide(destination: String?): ExecutionResult {
