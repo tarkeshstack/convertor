@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "931609818092",
+    "project_id": "wordly-49685",
+    "storage_bucket": "wordly-49685.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:931609818092:android:f576571c86b7ada12c46c9",
+        "android_client_info": {
+          "package_name": "com.wordly.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAslBTNFUKp9tKy_0QlmS_3o2veYQ9LIyg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
