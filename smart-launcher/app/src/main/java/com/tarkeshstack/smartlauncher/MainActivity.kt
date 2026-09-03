@@ -132,13 +132,23 @@ class MainActivity : ComponentActivity() {
                                 editingId = command.id,
                                 phrase = command.phrase,
                                 deepLinkUri = command.deepLinkUri.orEmpty(),
-                                deepLinkPackage = command.packageName.orEmpty(),
+                                deepLinkPackage = if (command.kind == CustomCommandKind.DEEP_LINK) {
+                                    command.packageName.orEmpty()
+                                } else {
+                                    ""
+                                },
                                 systemAction = command.systemAction.orEmpty(),
                                 systemActionLabel = if (command.kind == CustomCommandKind.SYSTEM_SHORTCUT) {
                                     command.label
                                 } else {
                                     ""
                                 },
+                                openAppPackage = if (command.kind == CustomCommandKind.OPEN_APP) {
+                                    command.packageName.orEmpty()
+                                } else {
+                                    ""
+                                },
+                                openAppLabel = if (command.kind == CustomCommandKind.OPEN_APP) command.label else "",
                             )
                             openAddFormOnCommands = true
                             screen = Screen.Commands

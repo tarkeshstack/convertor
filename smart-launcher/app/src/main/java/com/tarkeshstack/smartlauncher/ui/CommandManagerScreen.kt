@@ -18,11 +18,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
@@ -59,9 +61,10 @@ import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.CommandDraft
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
+import com.tarkeshstack.smartlauncher.model.DEEP_LINK_PLACEHOLDER
 import java.util.UUID
 
-private const val PLACEHOLDER = "REPLACE_ME"
+private const val PLACEHOLDER = DEEP_LINK_PLACEHOLDER
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -180,9 +183,23 @@ fun CommandManagerScreen(
                                                 editingId = command.id,
                                                 phrase = command.phrase,
                                                 deepLinkUri = command.deepLinkUri.orEmpty(),
-                                                deepLinkPackage = command.packageName.orEmpty(),
+                                                deepLinkPackage = if (command.kind == CustomCommandKind.DEEP_LINK) {
+                                                    command.packageName.orEmpty()
+                                                } else {
+                                                    ""
+                                                },
                                                 systemAction = command.systemAction.orEmpty(),
                                                 systemActionLabel = if (command.kind == CustomCommandKind.SYSTEM_SHORTCUT) {
+                                                    command.label
+                                                } else {
+                                                    ""
+                                                },
+                                                openAppPackage = if (command.kind == CustomCommandKind.OPEN_APP) {
+                                                    command.packageName.orEmpty()
+                                                } else {
+                                                    ""
+                                                },
+                                                openAppLabel = if (command.kind == CustomCommandKind.OPEN_APP) {
                                                     command.label
                                                 } else {
                                                     ""
@@ -255,6 +272,14 @@ private fun CommandRow(
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f),
         )
+        if (command.deepLinkUri?.contains(PLACEHOLDER) == true) {
+            Icon(
+                Icons.Filled.Keyboard,
+                contentDescription = "Needs a keyword to run",
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(18.dp).padding(end = 4.dp),
+            )
+        }
         IconButton(onClick = onToggleVisibleOnHome) {
             Icon(
                 if (command.visibleOnHome) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
@@ -290,9 +315,10 @@ private fun AddCommandForm(
     onGetLink: (currentPackage: String?) -> Unit,
 ) {
     var shortcutPickerOpen by remember { mutableStateOf(false) }
+    var appPickerOpen by remember { mutableStateOf(false) }
 
     // A link captured on the "Get a link" screen lands here pre-filled, and always wins
-    // over any system shortcut previously chosen in this same draft.
+    // over any system shortcut or app-open previously chosen in this same draft.
     LaunchedEffect(pendingCapturedLink) {
         val captured = pendingCapturedLink ?: return@LaunchedEffect
         onDraftChanged(
@@ -303,6 +329,8 @@ private fun AddCommandForm(
                 justCaptured = true,
                 systemAction = "",
                 systemActionLabel = "",
+                openAppPackage = "",
+                openAppLabel = "",
             ),
         )
         onConsumeCapturedLink()
@@ -315,6 +343,7 @@ private fun AddCommandForm(
         draft.deepLinkUri
     }
     val hasShortcut = draft.systemAction.isNotBlank()
+    val hasOpenApp = draft.openAppPackage.isNotBlank()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -357,7 +386,7 @@ private fun AddCommandForm(
             )
             Spacer(Modifier.height(8.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ChoiceCard(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Filled.Link,
@@ -368,9 +397,16 @@ private fun AddCommandForm(
                 ChoiceCard(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Filled.Settings,
-                    label = if (hasShortcut) "Change shortcut" else "System shortcut",
+                    label = if (hasShortcut) "Change" else "Shortcut",
                     selected = hasShortcut,
                     onClick = { shortcutPickerOpen = true },
+                )
+                ChoiceCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Filled.Apps,
+                    label = if (hasOpenApp) "Change" else "Open app",
+                    selected = hasOpenApp,
+                    onClick = { appPickerOpen = true },
                 )
             }
 
@@ -419,23 +455,54 @@ private fun AddCommandForm(
                         color = MaterialTheme.colorScheme.secondary,
                     )
                 }
+            } else if (hasOpenApp) {
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val app = allApps.firstOrNull { it.packageName == draft.openAppPackage }
+                    if (app != null) {
+                        Image(
+                            bitmap = remember(app.packageName) {
+                                app.icon.toBitmap(width = 48, height = 48).asImageBitmap()
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    } else {
+                        Icon(
+                            Icons.Filled.Apps,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Opens ${draft.openAppLabel}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
             }
 
             Spacer(Modifier.height(16.dp))
 
             val canSave = draft.phrase.isNotBlank() &&
-                (draft.deepLinkUri.isNotBlank() || hasShortcut) &&
+                (draft.deepLinkUri.isNotBlank() || hasShortcut || hasOpenApp) &&
                 (!hasPlaceholder || draft.placeholderValue.isNotBlank())
 
             Button(
                 onClick = {
-                    val kind = if (hasShortcut) CustomCommandKind.SYSTEM_SHORTCUT else CustomCommandKind.DEEP_LINK
-                    // The label is the linked app's real name when we know it — from the
-                    // app selected on "Get a link" — or the shortcut's own name, falling
-                    // back to the trigger phrase itself, since there's no separate
-                    // "display name" field and the target is always whatever was picked.
-                    val resolvedLabel = when {
-                        kind == CustomCommandKind.SYSTEM_SHORTCUT -> draft.systemActionLabel
+                    val kind = when {
+                        hasOpenApp -> CustomCommandKind.OPEN_APP
+                        hasShortcut -> CustomCommandKind.SYSTEM_SHORTCUT
+                        else -> CustomCommandKind.DEEP_LINK
+                    }
+                    // The label is the picked app's/shortcut's real name, falling back to
+                    // the trigger phrase itself, since there's no separate "display name"
+                    // field and the target is always whatever was picked above.
+                    val resolvedLabel = when (kind) {
+                        CustomCommandKind.OPEN_APP -> draft.openAppLabel
+                        CustomCommandKind.SYSTEM_SHORTCUT -> draft.systemActionLabel
                         else -> allApps.firstOrNull { it.packageName == draft.deepLinkPackage.trim() }?.label
                             ?: draft.phrase.trim().replaceFirstChar { it.uppercaseChar() }
                     }
@@ -445,10 +512,10 @@ private fun AddCommandForm(
                             phrase = draft.phrase.trim(),
                             label = resolvedLabel,
                             kind = kind,
-                            packageName = if (kind == CustomCommandKind.DEEP_LINK) {
-                                draft.deepLinkPackage.trim().ifBlank { null }
-                            } else {
-                                null
+                            packageName = when (kind) {
+                                CustomCommandKind.OPEN_APP -> draft.openAppPackage.trim().ifBlank { null }
+                                CustomCommandKind.DEEP_LINK -> draft.deepLinkPackage.trim().ifBlank { null }
+                                else -> null
                             },
                             deepLinkUri = if (kind == CustomCommandKind.DEEP_LINK) resolvedDeepLinkUri.trim() else null,
                             systemAction = if (kind == CustomCommandKind.SYSTEM_SHORTCUT) draft.systemAction else null,
@@ -476,9 +543,33 @@ private fun AddCommandForm(
                         deepLinkPackage = "",
                         placeholderValue = "",
                         justCaptured = false,
+                        openAppPackage = "",
+                        openAppLabel = "",
                     ),
                 )
                 shortcutPickerOpen = false
+            },
+        )
+    }
+
+    if (appPickerOpen) {
+        AppPickerDialog(
+            apps = allApps,
+            onDismiss = { appPickerOpen = false },
+            onSelect = { app ->
+                onDraftChanged(
+                    draft.copy(
+                        openAppPackage = app.packageName,
+                        openAppLabel = app.label,
+                        deepLinkUri = "",
+                        deepLinkPackage = "",
+                        placeholderValue = "",
+                        justCaptured = false,
+                        systemAction = "",
+                        systemActionLabel = "",
+                    ),
+                )
+                appPickerOpen = false
             },
         )
     }

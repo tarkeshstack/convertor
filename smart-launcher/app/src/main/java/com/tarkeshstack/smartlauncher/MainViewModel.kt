@@ -1,6 +1,7 @@
 package com.tarkeshstack.smartlauncher
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tarkeshstack.smartlauncher.command.ActionExecutor
@@ -14,8 +15,11 @@ import com.tarkeshstack.smartlauncher.model.AppInfo
 import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
+import com.tarkeshstack.smartlauncher.model.DEEP_LINK_PLACEHOLDER
+import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 import com.tarkeshstack.smartlauncher.model.ParsedCommand
 import com.tarkeshstack.smartlauncher.model.SpeechRequest
+import com.tarkeshstack.smartlauncher.model.SystemShortcuts
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,26 +65,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun defaultCommands(): List<CustomCommand> = listOf(
-        CustomCommand(
-            id = UUID.randomUUID().toString(),
-            phrase = "wifi",
-            label = "Wi-Fi settings",
-            kind = CustomCommandKind.SYSTEM_SHORTCUT,
-            packageName = null,
-            deepLinkUri = null,
-            systemAction = "android.settings.WIFI_SETTINGS",
-        ),
-        CustomCommand(
-            id = UUID.randomUUID().toString(),
-            phrase = "change wallpaper",
-            label = "Change wallpaper",
-            kind = CustomCommandKind.SYSTEM_SHORTCUT,
-            packageName = null,
-            deepLinkUri = null,
-            systemAction = "android.intent.action.SET_WALLPAPER",
-        ),
-        CustomCommand(
+    /** First-run defaults: every built-in system shortcut, plus a trigger phrase for each
+     *  of the popular apps' most useful deep link. The popular ones still carry
+     *  [DEEP_LINK_PLACEHOLDER] in their URI (a keyword typed later, not one we can guess),
+     *  except the one ready-to-run example showing what a filled-in one looks like. */
+    private fun defaultCommands(): List<CustomCommand> {
+        val systemCommands = SystemShortcuts.all.map { shortcut ->
+            val phrase = if (shortcut.action == "android.settings.WIFI_SETTINGS") {
+                "wifi"
+            } else {
+                shortcut.label.lowercase()
+            }
+            CustomCommand(
+                id = UUID.randomUUID().toString(),
+                phrase = phrase,
+                label = shortcut.label,
+                kind = CustomCommandKind.SYSTEM_SHORTCUT,
+                packageName = null,
+                deepLinkUri = null,
+                systemAction = shortcut.action,
+            )
+        }
+        val popularCommands = DeepLinkSuggestions.all.mapNotNull { suggestion ->
+            val phrase = popularCommandPhrase(suggestion.appLabel) ?: return@mapNotNull null
+            CustomCommand(
+                id = UUID.randomUUID().toString(),
+                phrase = phrase,
+                label = suggestion.appLabel,
+                kind = CustomCommandKind.DEEP_LINK,
+                packageName = suggestion.packageName,
+                deepLinkUri = suggestion.uriTemplate,
+                systemAction = null,
+            )
+        }
+        val readyExample = CustomCommand(
             id = UUID.randomUUID().toString(),
             phrase = "youtube soothing instrumental",
             label = "YouTube",
@@ -88,8 +106,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             packageName = "com.google.android.youtube",
             deepLinkUri = "https://www.youtube.com/results?search_query=soothing+instrumental",
             systemAction = null,
-        ),
-    )
+        )
+        return systemCommands + popularCommands + readyExample
+    }
+
+    /** Trigger phrase for each popular suggestion worth a default command — the generic
+     *  ones (Play Store, any website) aren't a specific "popular command" on their own. */
+    private fun popularCommandPhrase(appLabel: String): String? = when (appLabel) {
+        "YouTube" -> "youtube search"
+        "Spotify" -> "spotify search"
+        "Amazon" -> "amazon search"
+        "Instagram" -> "instagram profile"
+        "X (Twitter)" -> "twitter profile"
+        "Telegram" -> "telegram chat"
+        "Netflix" -> "netflix title"
+        "Google Maps" -> "maps search"
+        else -> null
+    }
 
     /** Per-command home-screen visibility — each saved command shows or hides on the
      *  home screen independently rather than as one switch for all of them. */
@@ -187,6 +220,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val custom = _uiState.value.customCommands.firstOrNull { it.id == id } ?: return
         runExecution(successMessage = "Ran \"${custom.label}\"") {
             executor.runCustomCommand(custom)
+        }
+    }
+
+    /** Runs a command whose deep link still has [DEEP_LINK_PLACEHOLDER] in it, substituting
+     *  [keyword] just for this run — the saved command itself stays a reusable template. */
+    fun runCustomCommandWithKeyword(id: String, keyword: String) {
+        val custom = _uiState.value.customCommands.firstOrNull { it.id == id } ?: return
+        val filledUri = custom.deepLinkUri?.replace(DEEP_LINK_PLACEHOLDER, Uri.encode(keyword.trim()))
+        runExecution(successMessage = "Ran \"${custom.label}\"") {
+            executor.runCustomCommand(custom.copy(deepLinkUri = filledUri))
         }
     }
 
