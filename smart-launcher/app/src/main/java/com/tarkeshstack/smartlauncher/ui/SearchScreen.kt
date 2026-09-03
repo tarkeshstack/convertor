@@ -131,16 +131,24 @@ fun SearchScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
     ) { padding ->
-        // One continuous scrollable list for the whole screen — search field, quick
-        // commands, and the app list all scroll together instead of as separate regions,
-        // so there's no hard edge where scrolling used to look like it was cutting off.
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-        ) {
-            item {
+        // Only commands not hidden show on the home screen, each with its own hide eye
+        // and edit pencil; a hidden one stays fully manageable (show again, edit,
+        // delete) in "Your commands" only. While actively searching it narrows further
+        // to just the ones linked to an app that's still in the results.
+        val isSearching = state.query.isNotBlank()
+        val visibleCommands = if (isSearching) {
+            state.customCommands.filter { command ->
+                command.visibleOnHome && state.filteredApps.any { it.packageName == command.packageName }
+            }
+        } else {
+            state.customCommands.filter { it.visibleOnHome }
+        }
+
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // The search field and the "Commands" header (with its + to add one) never
+            // scroll away — they sit above the list, not inside it, so adding a command is
+            // always one tap away no matter how far down the list below is scrolled.
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Spacer(Modifier.height(8.dp))
                 TextField(
                     value = state.query,
@@ -187,51 +195,63 @@ fun SearchScreen(
                 if (command != null && command.action != ActionType.OPEN_APP && command.action != ActionType.NONE) {
                     QuickActionCard(label = command.label, onClick = viewModel::runCommand)
                 }
-            }
 
-            // Only commands not hidden show on the home screen, each with its own hide eye
-            // and edit pencil; a hidden one stays fully manageable (show again, edit,
-            // delete) in "Your commands" only. While actively searching it narrows further
-            // to just the ones linked to an app that's still in the results.
-            val isSearching = state.query.isNotBlank()
-            val visibleCommands = if (isSearching) {
-                state.customCommands.filter { command ->
-                    command.visibleOnHome && state.filteredApps.any { it.packageName == command.packageName }
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Commands",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f).clickable(onClick = onOpenCommandManager),
+                    )
+                    IconButton(onClick = onAddCommand, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = "Add command",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
-            } else {
-                state.customCommands.filter { it.visibleOnHome }
+                Spacer(Modifier.height(6.dp))
             }
 
-            if (!isSearching || visibleCommands.isNotEmpty()) {
-                item {
-                    CommandsQuickAccess(
-                        commands = visibleCommands,
-                        allApps = state.allApps,
-                        onRun = { command ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(visibleCommands, key = { it.id }) { command ->
+                    CommandListRow(
+                        command = command,
+                        app = state.allApps.firstOrNull { it.packageName == command.packageName },
+                        onClick = {
                             if (command.deepLinkUri?.contains(DEEP_LINK_PLACEHOLDER) == true) {
                                 quickFillCommand = command
                             } else {
                                 viewModel.runCustomCommandById(command.id)
                             }
                         },
-                        onEdit = onEditCommand,
-                        onHide = { command -> viewModel.setCommandVisibleOnHome(command.id, false) },
-                        onAdd = onAddCommand,
-                        onOpenAll = onOpenCommandManager,
-                        showAddRow = !isSearching,
+                        onEdit = { onEditCommand(command) },
+                        onHide = { viewModel.setCommandVisibleOnHome(command.id, false) },
                     )
                 }
-            }
 
-            // The app list itself is search-only now — nothing is listed until you type,
-            // so the home screen isn't just the entire installed-app list by default.
-            if (isSearching) {
-                items(state.filteredApps, key = { it.packageName }) { app ->
-                    AppRow(app = app, onClick = { viewModel.launchApp(app) })
+                // The app list itself is search-only now — nothing is listed until you
+                // type, so the home screen isn't just the entire installed-app list by
+                // default.
+                if (isSearching) {
+                    items(state.filteredApps, key = { it.packageName }) { app ->
+                        AppRow(app = app, onClick = { viewModel.launchApp(app) })
+                    }
                 }
-            }
 
-            item { Spacer(Modifier.height(16.dp)) }
+                item { Spacer(Modifier.height(16.dp)) }
+            }
         }
     }
 
@@ -246,46 +266,6 @@ fun SearchScreen(
                 quickFillCommand = null
             },
         )
-    }
-}
-
-/** Every command not hidden, listed vertically — this is also the only way to reach the
- *  full "Your commands" list now (tap the "Commands" label). "Add command" always sits
- *  below the list, as its own row, rather than competing for space inside it. Each row
- *  carries its own eye icon to hide just that command from here (show it again, edit, or
- *  delete it stays in "Your commands"), plus a small keyboard badge for one that still
- *  needs a keyword typed in before it can run. */
-@Composable
-private fun CommandsQuickAccess(
-    commands: List<CustomCommand>,
-    allApps: List<AppInfo>,
-    onRun: (CustomCommand) -> Unit,
-    onEdit: (CustomCommand) -> Unit,
-    onHide: (CustomCommand) -> Unit,
-    onAdd: () -> Unit,
-    onOpenAll: () -> Unit,
-    showAddRow: Boolean,
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp)) {
-        Text(
-            "Commands",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.clickable(onClick = onOpenAll),
-        )
-        Spacer(Modifier.height(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            commands.forEach { command ->
-                CommandListRow(
-                    command = command,
-                    app = allApps.firstOrNull { it.packageName == command.packageName },
-                    onClick = { onRun(command) },
-                    onEdit = { onEdit(command) },
-                    onHide = { onHide(command) },
-                )
-            }
-            if (showAddRow) AddCommandRow(onClick = onAdd)
-        }
     }
 }
 
@@ -359,36 +339,6 @@ private fun CommandListRow(
                     modifier = Modifier.size(16.dp),
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun AddCommandRow(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                Icons.Filled.Add,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(
-                "Add command",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                fontWeight = FontWeight.Medium,
-            )
         }
     }
 }

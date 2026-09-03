@@ -66,9 +66,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** First-run defaults: every built-in system shortcut, plus a trigger phrase for each
-     *  of the popular apps' most useful deep link. The popular ones still carry
-     *  [DEEP_LINK_PLACEHOLDER] in their URI (a keyword typed later, not one we can guess),
-     *  except the one ready-to-run example showing what a filled-in one looks like. */
+     *  of the popular apps' most useful deep link. Each popular one still carries
+     *  [DEEP_LINK_PLACEHOLDER] in its URI — running it prompts for the keyword right then
+     *  (see [runCustomCommandWithKeyword]) rather than guessing one up front. */
     private fun defaultCommands(): List<CustomCommand> {
         val systemCommands = SystemShortcuts.all.map { shortcut ->
             val phrase = if (shortcut.action == "android.settings.WIFI_SETTINGS") {
@@ -98,16 +98,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 systemAction = null,
             )
         }
-        val readyExample = CustomCommand(
-            id = UUID.randomUUID().toString(),
-            phrase = "youtube soothing instrumental",
-            label = "YouTube",
-            kind = CustomCommandKind.DEEP_LINK,
-            packageName = "com.google.android.youtube",
-            deepLinkUri = "https://www.youtube.com/results?search_query=soothing+instrumental",
-            systemAction = null,
-        )
-        return systemCommands + popularCommands + readyExample
+        return systemCommands + popularCommands
     }
 
     /** Trigger phrase for each popular suggestion worth a default command — the generic
