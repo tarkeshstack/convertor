@@ -903,6 +903,26 @@ def patch_remove_chakra_watermark(html: str) -> str:
     return html
 
 
+def patch_examples_only_when_to_english(html: str) -> str:
+    """The "Usage in English" example sentences used to render unconditionally
+    for every result, even when translating *from* English into another
+    language -- where an English example is redundant, since the input side
+    is already English. Show it only when the "To" language is English
+    itself (translating *into* English), matching the same toLang === 'en'
+    condition already used to decide word-head vs. lang-grid visibility."""
+    old = """  document.getElementById('word-head').style.display = toLang === 'en' ? 'flex' : 'none';
+  document.getElementById('lang-grid').style.display = toLang === 'en' ? 'none' : 'grid';
+  document.getElementById('r-examples').innerHTML = entry.ex.map(e => `<div class="example-line">${e}</div>`).join('');"""
+    new = """  document.getElementById('word-head').style.display = toLang === 'en' ? 'flex' : 'none';
+  document.getElementById('lang-grid').style.display = toLang === 'en' ? 'none' : 'grid';
+  document.querySelector('.examples').style.display = toLang === 'en' ? '' : 'none';
+  document.getElementById('r-examples').innerHTML = entry.ex.map(e => `<div class="example-line">${e}</div>`).join('');"""
+    if old not in html:
+        raise ValueError("result-card toLang visibility block not found — upstream logic changed")
+    html = html.replace(old, new)
+    return html
+
+
 def patch_dark_mode(html: str) -> str:
     """Add a light-grey dark mode: a header toggle button that flips
     :root[data-theme] between light and dark, persisted in localStorage, and
@@ -1141,6 +1161,7 @@ def main():
     src_html = patch_remove_footer_and_social(src_html)
     src_html = patch_white_background(src_html)
     src_html = patch_remove_chakra_watermark(src_html)
+    src_html = patch_examples_only_when_to_english(src_html)
     src_html = patch_dark_mode(src_html)
 
     marker = "</body>"

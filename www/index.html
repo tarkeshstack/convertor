@@ -3019,6 +3019,7 @@ function showResult(term, opts){
   document.getElementById('r-pron').textContent = entry.pron;
   document.getElementById('word-head').style.display = toLang === 'en' ? 'flex' : 'none';
   document.getElementById('lang-grid').style.display = toLang === 'en' ? 'none' : 'grid';
+  document.querySelector('.examples').style.display = toLang === 'en' ? '' : 'none';
   document.getElementById('r-examples').innerHTML = entry.ex.map(e => `<div class="example-line">${e}</div>`).join('');
   resultBox.classList.add('show');
   setHasContent(true);
