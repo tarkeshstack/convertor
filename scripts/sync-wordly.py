@@ -148,9 +148,9 @@ NATIVE_BRIDGE_SCRIPT = """
     }
 
     if(CapApp){
-      // Close whichever full-screen overlay is open (onboarding tour, Quick Type,
-      // Image Translator, SpeakEasy, Writing Practice); otherwise exit the app.
-      const OVERLAY_IDS = ['tour-overlay', 'quicktype-overlay', 'scanline-overlay', 'speakeasy-overlay', 'writing-overlay'];
+      // Close whichever full-screen overlay is open (onboarding tour, Quick
+      // Type, SpeakEasy); otherwise exit the app.
+      const OVERLAY_IDS = ['tour-overlay', 'quicktype-overlay', 'speakeasy-overlay'];
       CapApp.addListener('backButton', function(){
         const open = OVERLAY_IDS
           .map(function(id){ return document.getElementById(id); })
@@ -383,35 +383,8 @@ NATIVE_BRIDGE_SCRIPT = """
       });
     }
 
-    // ---- Native save/share for Scanline (Image Translator) — same reasoning
-    // as shareSpeakEasyAudio above: a WebView's own download-via-<a download>
-    // and Web Share API are both unreliable here, so this writes the
-    // translated-image PNG to the cache dir and hands it to Android's real
-    // share sheet, which lets the user pick where to save it (Files, Photos,
-    // Drive, etc.) — there's no permission-free way to write straight into
-    // shared storage on modern Android without that picker.
-    function saveScanlineImage(base64Png, mode){
-      if(!CapFS || !CapShare || !base64Png) return;
-      const path = 'scanline-translated.png';
-      CapFS.writeFile({ path: path, data: base64Png, directory: 'CACHE' }).then(function(){
-        return CapFS.getUri({ path: path, directory: 'CACHE' });
-      }).then(function(uriResult){
-        return CapShare.share({
-          title: mode === 'download' ? 'Save image' : 'Image Translator',
-          text: mode === 'download' ? undefined : 'Translated with Wordly Image Translator',
-          files: [uriResult.uri],
-          dialogTitle: mode === 'download' ? 'Save image to your device' : 'Share translated image'
-        });
-      }).catch(function(){ /* user cancelled, or write/share failed — nothing to fall back to here */ });
-    }
-    window.addEventListener('message', function(e){
-      const data = e.data;
-      if(!data || typeof data !== 'object' || data.type !== 'wordly-scanline:save') return;
-      saveScanlineImage(data.data, data.mode);
-    });
-
     // ---- Message relay: answers the postMessage speech shim running inside
-    // the SpeakEasy / Writing Practice blob: iframes (see sync-wordly.py). ----
+    // the SpeakEasy blob: iframe (see sync-wordly.py). ----
     let activeRelayRecognition = null;
     window.addEventListener('message', function(e){
       const data = e.data;
@@ -622,527 +595,485 @@ def patch_speakeasy_credit_caption(fragment: str) -> str:
     return fragment
 
 
-def patch_scanline_ocr_confidence(fragment: str) -> str:
-    """Filter out Tesseract's low-confidence noise "detections" — e.g. a
-    photo with no text at all (bark, leaves, texture) still produced short
-    junk strings that then got "translated" into nonsense, making it look
-    like a photo of a tree was mistranslated. Line-level confidence plus a
-    minimum length and an actual-letter/digit check reject that noise while
-    still accepting real (if imperfect) OCR text."""
+def patch_speakeasy_theme(fragment: str) -> str:
+    """Match SpeakEasy's own standalone page to the parent app's look: plain
+    white background (no cream tint / decorative gradient blobs), plus a
+    light-grey dark-mode palette that the parent syncs into this iframe over
+    postMessage (see the 'wordly:theme' listener added below)."""
+    old_root = """  :root {
+    --saffron-soft: #FBE3C6;
+    --green-soft: #E1F3EC;
+    --saffron: #D9822F;
+    --green: #2F8F4E;
+    --chakra-blue: #2563EB;
+    --accent: #B23A55;
+    --primary-container: #F5DCE1;
+    --maroon: #B23A55;
+    --teal: #17A98F;
+    --bg: #FBF3E9;
+    --surface: #FFFFFF;
+    --surface-variant: #F6F4EF;
+    --on-surface: #2B2620;
+    --on-surface-variant: #8C8375;
+    --outline: #D9AAB2;
+    --error: #C23B3B;
+    --font-display: "Poppins", "Segoe UI", system-ui, sans-serif;
+    --font-body: "Work Sans", "Segoe UI", system-ui, sans-serif;
+  }"""
+    new_root = """  :root {
+    --saffron-soft: #FBE3C6;
+    --green-soft: #E1F3EC;
+    --saffron: #D9822F;
+    --green: #2F8F4E;
+    --chakra-blue: #2563EB;
+    --accent: #B23A55;
+    --primary-container: #F5DCE1;
+    --maroon: #B23A55;
+    --teal: #17A98F;
+    --bg: #FFFFFF;
+    --surface: #FFFFFF;
+    --surface-variant: #F6F4EF;
+    --on-surface: #2B2620;
+    --on-surface-variant: #8C8375;
+    --outline: #D9AAB2;
+    --error: #C23B3B;
+    --font-display: "Poppins", "Segoe UI", system-ui, sans-serif;
+    --font-body: "Work Sans", "Segoe UI", system-ui, sans-serif;
+  }
+  :root[data-theme="dark"] {
+    --bg: #D9D9DC;
+    --surface: #E8E8EA;
+    --surface-variant: #CFCFD2;
+    --on-surface: #1F2024;
+    --on-surface-variant: #55565C;
+    --outline: #B7B7BB;
+  }"""
+    if old_root not in fragment:
+        raise ValueError("speakeasy :root not found — upstream styles changed")
+    fragment = fragment.replace(old_root, new_root)
 
-    old_filter = """    lines = (data.lines || [])
-      .map(l=>({ bbox: l.bbox, text: l.text.trim() }))
-      .filter(l=> l.text.length > 0);"""
-    new_filter = """    lines = (data.lines || [])
-      .map(l=>({ bbox: l.bbox, text: l.text.trim(), confidence: l.confidence }))
-      .filter(l=> l.text.length > 1 && (l.confidence === undefined || l.confidence >= 60) && /[\\p{L}\\p{N}]/u.test(l.text));"""
-    if old_filter not in fragment:
-        raise ValueError("scanline OCR line filter not found — upstream logic changed")
-    fragment = fragment.replace(old_filter, new_filter)
+    old_html_bg = """  html {
+    margin: 0;
+    min-height: 100%;
+    background:
+      radial-gradient(circle at top left, rgba(255,153,51,0.13) 0%, rgba(255,153,51,0.13) 14%, transparent 42%),
+      radial-gradient(circle at bottom right, rgba(19,136,8,0.13) 0%, rgba(19,136,8,0.13) 14%, transparent 42%),
+      var(--bg);
+    background-attachment: fixed;
+    background-size: cover;
+  }"""
+    new_html_bg = """  html {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+  }"""
+    if old_html_bg not in fragment:
+        raise ValueError("speakeasy html background not found — upstream styles changed")
+    fragment = fragment.replace(old_html_bg, new_html_bg)
+
+    old_close = """</script>
+</body>
+</html>"""
+    new_close = """</script>
+<script>
+  window.addEventListener('message', function(e){
+    if(!e.data || e.data.type !== 'wordly:theme') return;
+    document.documentElement.setAttribute('data-theme', e.data.theme === 'dark' ? 'dark' : 'light');
+  });
+</script>
+</body>
+</html>"""
+    if old_close not in fragment:
+        raise ValueError("speakeasy closing </body></html> not found — upstream markup changed")
+    idx = fragment.rindex(old_close)
+    fragment = fragment[:idx] + new_close + fragment[idx + len(old_close):]
 
     return fragment
 
 
-def patch_scanline_lang_prompt(fragment: str) -> str:
-    """Move the From/To language selects out of the always-visible top row
-    and into a prompt that appears only after an image is uploaded, right
-    where the selects used to sit — so translation doesn't start (with
-    whatever languages happened to be selected before) until the user has
-    actually confirmed the languages for this image."""
+def _remove_block(html: str, start_marker: str, end_marker: str, *, use_rindex: bool = False) -> str:
+    """Delete everything from start_marker up to (not including) end_marker.
+    Pass use_rindex=True when end_marker's text also appears earlier inside
+    the block being removed (e.g. a standalone tool's own inner </body></html>
+    before the outer page's), so the *last* occurrence is used instead of the
+    first one found after start_marker."""
+    start = html.index(start_marker)
+    end = html.rindex(end_marker) if use_rindex else html.index(end_marker, start)
+    return html[:start] + html[end:]
 
-    old_top_row = """    <div class="topRow">
-      <label class="fieldLabel">From
-        <select id="fromSelect"></select>
-      </label>
-      <label class="fieldLabel">To
-        <select id="toSelect"></select>
-      </label>
-      <div class="cornerActions">
-        <button class="downloadCorner" id="shareBtn" disabled title="Share image with translation" aria-label="Share image with translation">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-            <path d="M8.6 10.5l6.8-3.9"/><path d="M8.6 13.5l6.8 3.9"/>
-          </svg>
-        </button>
-        <button class="downloadCorner" id="downloadBtn" disabled title="Download image with translation" aria-label="Download image with translation">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
-          </svg>
-        </button>
-      </div>
-    </div>"""
-    new_top_row = """    <div class="topRow">
-      <div class="cornerActions">
-        <button class="downloadCorner" id="shareBtn" disabled title="Share image with translation" aria-label="Share image with translation">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-            <path d="M8.6 10.5l6.8-3.9"/><path d="M8.6 13.5l6.8 3.9"/>
-          </svg>
-        </button>
-        <button class="downloadCorner" id="downloadBtn" disabled title="Download image with translation" aria-label="Download image with translation">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
-          </svg>
-        </button>
-      </div>
-    </div>
 
-    <div class="topRow" id="langPrompt">
-      <label class="fieldLabel">From
-        <select id="fromSelect"></select>
-      </label>
-      <label class="fieldLabel">To
-        <select id="toSelect"></select>
-      </label>
-      <button class="btn primary" id="translateBtn" type="button">Translate</button>
-    </div>"""
-    if old_top_row not in fragment:
-        raise ValueError("scanline topRow markup not found — upstream layout changed")
-    fragment = fragment.replace(old_top_row, new_top_row)
+def patch_remove_scanline_tool(html: str) -> str:
+    """Drop the Image Translator (Scanline) tool entirely: its launcher
+    button, overlay, iframe wiring, tour step, and the standalone <template>
+    it was built from."""
+    old_frame_ids = "#scanline-frame, #speakeasy-frame, #writing-frame{"
+    new_frame_ids = "#speakeasy-frame{"
+    if old_frame_ids not in html:
+        raise ValueError("tool-frame CSS selector not found — upstream styles changed")
+    html = html.replace(old_frame_ids, new_frame_ids)
 
-    old_css = """  .topRow, .actionRow{
-    display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
+    html = _remove_block(
+        html,
+        '<button class="photo-btn" id="ocr-open-btn"',
+        '<button class="clear-btn" id="clear-btn">',
+    )
+    html = _remove_block(
+        html,
+        '<div class="scanline-overlay" id="scanline-overlay">',
+        '<div class="scanline-overlay" id="speakeasy-overlay">',
+    )
+    html = _remove_block(
+        html,
+        "// ---------------- Scanline: image translator (embedded standalone app) ----------------",
+        "// ---------------- Writing Practice (embedded standalone app) ----------------",
+    )
+
+    old_msg = "  if(e.data.app === 'scanline') closeScanline();\n"
+    if old_msg not in html:
+        raise ValueError("scanline back-message handler not found — upstream logic changed")
+    html = html.replace(old_msg, "")
+
+    old_tour_step = """  {
+    target: '#search-box',
+    title: 'Translate from a photo',
+    desc: 'Tap the camera to scan text from a sign, label, or document and get an instant translation.'
+  },
+"""
+    if old_tour_step not in html:
+        raise ValueError("scanline tour step not found — upstream tour changed")
+    html = html.replace(old_tour_step, "")
+
+    html = _remove_block(html, '<template id="scanline-src">', '<template id="speakeasy-src">')
+    return html
+
+
+def patch_remove_writing_tool(html: str) -> str:
+    """Drop the Writing Practice tool entirely: its pencil launcher link,
+    overlay, iframe wiring, tour step, and the standalone <template> it was
+    built from."""
+    old_link_css = """  .writing-practice-link{
+    position: absolute;
+    right: -20px;
+    bottom: -2px;
+    z-index: 3;
+    width: 20px;
+    height: 20px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color: #7BA7E8;
+    cursor: pointer;
   }
-  .topRow{ margin-top: 6px; }
-  .actionRow{ margin-top:12px; }"""
-    new_css = """  .topRow, .actionRow{
-    display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
-  }
-  .topRow{ margin-top: 6px; }
-  .actionRow{ margin-top:12px; }
-  #langPrompt{ display:none; }
-  #langPrompt.show{ display:flex; }"""
-    if old_css not in fragment:
-        raise ValueError("scanline .topRow CSS not found — upstream styles changed")
-    fragment = fragment.replace(old_css, new_css)
+  .writing-practice-link:hover{ color: #2563EB; }
+"""
+    if old_link_css not in html:
+        raise ValueError("writing-practice-link CSS not found — upstream styles changed")
+    html = html.replace(old_link_css, "")
 
-    old_consts = """const fromSelect = document.getElementById('fromSelect');
-const toSelect = document.getElementById('toSelect');
-const statusEl = document.getElementById('status');"""
-    new_consts = """const fromSelect = document.getElementById('fromSelect');
-const toSelect = document.getElementById('toSelect');
-const langPrompt = document.getElementById('langPrompt');
-const translateBtn = document.getElementById('translateBtn');
-const statusEl = document.getElementById('status');"""
-    if old_consts not in fragment:
-        raise ValueError("scanline const declarations not found — upstream logic changed")
-    fragment = fragment.replace(old_consts, new_consts)
+    old_wrap = """    <div class="script-glyph-wrap">
+      <div class="script-glyph ml">അ</div>
+      <a href="#" class="writing-practice-link" id="writing-practice-link" title="Practice writing letters">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      </a>
+    </div>"""
+    new_wrap = """    <div class="script-glyph ml">അ</div>"""
+    if old_wrap not in html:
+        raise ValueError("writing-practice-link wrap not found — upstream markup changed")
+    html = html.replace(old_wrap, new_wrap)
 
-    old_prevent_lang = """fromSelect.addEventListener('change', ()=>{ preventSameLang(fromSelect, toSelect); });
-toSelect.addEventListener('change', ()=> preventSameLang(toSelect, fromSelect));"""
-    new_prevent_lang = """fromSelect.addEventListener('change', ()=>{ preventSameLang(fromSelect, toSelect); });
-toSelect.addEventListener('change', ()=> preventSameLang(toSelect, fromSelect));
-translateBtn.addEventListener('click', ()=>{
-  langPrompt.classList.remove('show');
-  runScanAndTranslate();
-});"""
-    if old_prevent_lang not in fragment:
-        raise ValueError("scanline language-select listeners not found — upstream logic changed")
-    fragment = fragment.replace(old_prevent_lang, new_prevent_lang)
+    html = _remove_block(
+        html,
+        '<div class="scanline-overlay" id="writing-overlay">',
+        '<div class="bottom-bar">',
+    )
+    html = _remove_block(
+        html,
+        "// ---------------- Writing Practice (embedded standalone app) ----------------",
+        "window.addEventListener('message', (e)=>{",
+    )
 
-    old_load_file = """function loadFile(file){
-  const img = new Image();
-  img.onload = ()=>{
-    baseImage = img;
-    drawBase();
-    placeholder.hidden = true;
-    canvas.hidden = false;
-    downloadBtn.disabled = true;
-    shareBtn.disabled = true;
-    resultsEl.hidden = true;
-    lines = [];
-    setStatus('');
-    runScanAndTranslate();
-  };
-  img.src = URL.createObjectURL(file);
-}"""
-    new_load_file = """function loadFile(file){
-  const img = new Image();
-  img.onload = ()=>{
-    baseImage = img;
-    drawBase();
-    placeholder.hidden = true;
-    canvas.hidden = false;
-    downloadBtn.disabled = true;
-    shareBtn.disabled = true;
-    resultsEl.hidden = true;
-    lines = [];
-    setStatus('');
-    langPrompt.classList.add('show');
-  };
-  img.src = URL.createObjectURL(file);
-}"""
-    if old_load_file not in fragment:
-        raise ValueError("scanline loadFile() not found — upstream logic changed")
-    fragment = fragment.replace(old_load_file, new_load_file)
+    old_msg = "  if(e.data.app === 'writing') closeWriting();\n"
+    if old_msg not in html:
+        raise ValueError("writing back-message handler not found — upstream logic changed")
+    html = html.replace(old_msg, "")
 
-    return fragment
+    old_tour_step = """  {
+    target: '#writing-practice-link',
+    title: 'Practice writing',
+    desc: 'Tap the pencil to trace letters by hand and learn to write in a new script.'
+  },
+"""
+    if old_tour_step not in html:
+        raise ValueError("writing tour step not found — upstream tour changed")
+    html = html.replace(old_tour_step, "")
+
+    html = _remove_block(html, '<template id="writing-src">', "\n</body>\n</html>", use_rindex=True)
+    return html
 
 
-def patch_scanline_share_download(fragment: str) -> str:
-    """Route Download/Share to the parent page's real Android Filesystem +
-    Share plugins instead of a WebView <a download> click (which doesn't
-    trigger Android's download manager here) and the Web Share API (already
-    proven unreliable for file attachments in this WebView — see
-    shareSpeakEasyAudio/patch_speakeasy_share_save). Falls back to the
-    original browser-only behavior when opened standalone outside the app."""
+def patch_remove_footer_and_social(html: str) -> str:
+    """Drop the "Design and Developed by Tarkesh" footer credit and the
+    WhatsApp/Instagram/X/LinkedIn share-the-app row, plus their now-dead JS
+    wiring and tour step, and reclaim the bottom padding that was reserved
+    for the fixed bottom bar."""
+    old_padding = "    padding: 18px 12px 90px;"
+    new_padding = "    padding: 18px 12px 18px;"
+    if old_padding not in html:
+        raise ValueError("body padding not found — upstream styles changed")
+    html = html.replace(old_padding, new_padding)
 
-    old_buttons = """downloadBtn.addEventListener('click', ()=>{
-  if(!baseImage) return;
-  canvas.toBlob(blob=>{
-    if(!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'scanline-translated.png';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, 'image/png');
+    html = _remove_block(
+        html,
+        '<div class="bottom-bar">',
+        "<script>\n// ---------------- Dictionary data ----------------",
+    )
+
+    old_listener = """document.getElementById('share-apps-row').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.share-app-btn');
+  if(!btn) return;
+  shareViaApp(btn.getAttribute('data-app'), buildFullShareText());
 });
 
-shareBtn.addEventListener('click', ()=>{
-  if(!baseImage) return;
-  canvas.toBlob(async blob=>{
-    if(!blob) return;
-    const file = new File([blob], 'scanline-translated.png', { type: 'image/png' });
-    if(navigator.canShare && navigator.canShare({ files: [file] })){
-      try{
-        await navigator.share({ files: [file], title: 'Image Translator', text: 'Translated with Image Translator' });
-      }catch(err){
-        // user cancelled the share sheet — nothing to do
-      }
-    } else if(navigator.share){
-      try{
-        await navigator.share({ title: 'Image Translator', text: 'Translated with Image Translator' });
-      }catch(err){ /* cancelled */ }
-    } else {
-      setStatus('Sharing isn\\'t supported in this browser — try Download instead.', {err:true});
-    }
-  }, 'image/png');
-});"""
-    new_buttons = """downloadBtn.addEventListener('click', ()=>{
-  if(!baseImage) return;
-  if(window.parent && window.parent !== window){
-    const base64 = canvas.toDataURL('image/png').split(',')[1];
-    window.parent.postMessage({ type: 'wordly-scanline:save', mode: 'download', data: base64 }, '*');
-    setStatus('Choose an app to save the image to (Files, Photos, Drive\\u2026).');
-    return;
+"""
+    if old_listener not in html:
+        raise ValueError("share-apps-row listener not found — upstream logic changed")
+    html = html.replace(old_listener, "")
+
+    old_tour_step = """  {
+    target: '#share-apps-row',
+    title: 'Share Wordly',
+    desc: 'Know someone who\\u2019d find this useful? Share it straight from here, anytime.'
   }
-  canvas.toBlob(blob=>{
-    if(!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'scanline-translated.png';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, 'image/png');
-});
+"""
+    if old_tour_step not in html:
+        raise ValueError("share tour step not found — upstream tour changed")
+    html = html.replace(old_tour_step, "")
 
-shareBtn.addEventListener('click', ()=>{
-  if(!baseImage) return;
-  if(window.parent && window.parent !== window){
-    const base64 = canvas.toDataURL('image/png').split(',')[1];
-    window.parent.postMessage({ type: 'wordly-scanline:save', mode: 'share', data: base64 }, '*');
-    setStatus('Opening the share sheet\\u2026');
-    return;
-  }
-  canvas.toBlob(async blob=>{
-    if(!blob) return;
-    const file = new File([blob], 'scanline-translated.png', { type: 'image/png' });
-    if(navigator.canShare && navigator.canShare({ files: [file] })){
-      try{
-        await navigator.share({ files: [file], title: 'Image Translator', text: 'Translated with Image Translator' });
-      }catch(err){
-        // user cancelled the share sheet — nothing to do
-      }
-    } else if(navigator.share){
-      try{
-        await navigator.share({ title: 'Image Translator', text: 'Translated with Image Translator' });
-      }catch(err){ /* cancelled */ }
-    } else {
-      setStatus('Sharing isn\\'t supported in this browser — try Download instead.', {err:true});
-    }
-  }, 'image/png');
-});"""
-    if old_buttons not in fragment:
-        raise ValueError("scanline download/share button handlers not found — upstream logic changed")
-    fragment = fragment.replace(old_buttons, new_buttons)
+    old_guard = "  if(e.target.closest('.share-apps-row')) return; // handled by its own listener below\n"
+    if old_guard not in html:
+        raise ValueError("share-apps-row click guard not found — upstream logic changed")
+    html = html.replace(old_guard, "")
 
-    return fragment
+    html = _remove_block(html, "  .share-app-btn:hover{", "  .toast{")
+    html = _remove_block(html, "  .bottom-bar{", "  @media (max-width: 520px){")
+
+    return html
 
 
-def patch_writing_persistent_back_btn(fragment: str) -> str:
-    """The "back to Wordly" exit button lives inside #home-screen, which is
-    display:none whenever #practice-screen is active — so once you're
-    actually practicing there's no on-screen way to exit the tool (only the
-    in-tool "‹ Back" link, which returns to the character grid, not to
-    Wordly). Move the button to be a direct child of #app instead, so it
-    stays rendered (and, thanks to its own position:absolute + z-index,
-    visually anchored to the same top-left corner) across every screen."""
+def patch_white_background(html: str) -> str:
+    """Flatten every surface to plain white instead of the warm off-white /
+    cream tones and decorative orange-green gradient blobs the main page
+    used behind its content."""
+    old_root_bg = """    --panel: #FFFFFF;
+    --bg: #FDFCFA;
+    --bg-tint: #F6F4EF;"""
+    new_root_bg = """    --panel: #FFFFFF;
+    --bg: #FFFFFF;
+    --bg-tint: #F7F7F7;"""
+    if old_root_bg not in html:
+        raise ValueError("main :root background vars not found — upstream styles changed")
+    html = html.replace(old_root_bg, new_root_bg)
 
-    old_home_open = """<div id="app">
-  <!-- ============= HOME ============= -->
-  <div id="home-screen" class="screen active">"""
-    new_home_open = """<div id="app">
-  <button class="wordly-back-btn" id="wordly-back-btn" title="Back to Wordly" aria-label="Back to Wordly">
-    <svg width="54" height="26" viewBox="0 0 30 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M25 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-  </button>
-  <!-- ============= HOME ============= -->
-  <div id="home-screen" class="screen active">"""
-    if old_home_open not in fragment:
-        raise ValueError("writing #app/#home-screen markup not found — upstream layout changed")
-    fragment = fragment.replace(old_home_open, new_home_open)
+    old_body_bg = """  body{
+    background:
+      radial-gradient(circle at top left, rgba(255,153,51,0.13) 0%, rgba(255,153,51,0.13) 14%, transparent 42%),
+      radial-gradient(circle at bottom right, rgba(19,136,8,0.13) 0%, rgba(19,136,8,0.13) 14%, transparent 42%),
+      var(--bg);
+    background-attachment: fixed;
+    background-size: cover;
+    color: var(--ink);"""
+    new_body_bg = """  body{
+    background: var(--bg);
+    color: var(--ink);"""
+    if old_body_bg not in html:
+        raise ValueError("main body background not found — upstream styles changed")
+    html = html.replace(old_body_bg, new_body_bg)
 
-    old_inline_btn = """    <button class="wordly-back-btn" id="wordly-back-btn" title="Back to Wordly" aria-label="Back to Wordly">
-      <svg width="54" height="26" viewBox="0 0 30 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M25 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-    </button>
-    <div id="home-content">"""
-    new_inline_btn = """    <div id="home-content">"""
-    if old_inline_btn not in fragment:
-        raise ValueError("writing inline wordly-back-btn not found — upstream layout changed")
-    fragment = fragment.replace(old_inline_btn, new_inline_btn)
-
-    return fragment
+    return html
 
 
-def patch_writing_remove_practice_back_link(fragment: str) -> str:
-    """Remove the in-tool "‹ Back" link from the practice header — once the
-    persistent "back to Wordly" exit button (see
-    patch_writing_persistent_back_btn) is visible during practice too, this
-    second, differently-scoped back control sitting right next to it in the
-    same corner is redundant and visually clashes with it. The "Jump to a
-    character" modal (tap the title) and the new Previous/Next buttons cover
-    the same navigation need."""
-
-    old_header = """    <div class="practice-header">
-      <button class="back-link" id="practice-back-btn">‹ Back</button>
-      <button class="practice-header-center" id="practice-open-grid-btn">
-        <div class="practice-title" id="practice-title"></div>
-        <div class="practice-progress" id="practice-progress"></div>
-      </button>
-    </div>"""
-    new_header = """    <div class="practice-header">
-      <button class="practice-header-center" id="practice-open-grid-btn">
-        <div class="practice-title" id="practice-title"></div>
-        <div class="practice-progress" id="practice-progress"></div>
-      </button>
-    </div>"""
-    if old_header not in fragment:
-        raise ValueError("writing practice-header markup not found — upstream layout changed")
-    fragment = fragment.replace(old_header, new_header)
-
-    old_listener = """  document.getElementById("practice-back-btn").onclick = function () {
-    if (practice.autoAdvanceTimer) clearTimeout(practice.autoAdvanceTimer);
-    state.scores = loadScores();
-    showScreen("home-screen");
-    renderHome();
-  };
-  document.getElementById("practice-open-grid-btn").onclick = openGridModal;"""
-    new_listener = """  document.getElementById("practice-open-grid-btn").onclick = openGridModal;"""
-    if old_listener not in fragment:
-        raise ValueError("writing practice-back-btn listener not found — upstream logic changed")
-    fragment = fragment.replace(old_listener, new_listener)
-
-    return fragment
-
-
-def patch_writing_guide_tolerance(fragment: str) -> str:
-    """The tracing check only ever verified that most of what the user drew
-    landed somewhere near *some* point of the guide (borderToleranceAccuracy
-    — nearest-template-point distance per user point). For a guide made of
-    several separate strokes spread across the canvas, that's satisfied by
-    almost any scribble that happens to cross the guide's general area,
-    without the user ever actually tracing its path — confirmed by a
-    screenshot showing a handful of unrelated diagonal lines scored as
-    "Great job!". Add the symmetric check (how much of the *guide* the user's
-    strokes actually came near) and require both to pass, and tighten the
-    radius (22 -> 14, in the 0-100 template-space grid) — together these
-    catch strokes that touch the guide's neighborhood without following it."""
-
-    old_radius = """  var BORDER_TOLERANCE_RADIUS = 22; // template-space units (canvas is 0-100); how far off the guide line a point may land"""
-    new_radius = """  var BORDER_TOLERANCE_RADIUS = 14; // template-space units (canvas is 0-100); how far off the guide line a point may land"""
-    if old_radius not in fragment:
-        raise ValueError("writing BORDER_TOLERANCE_RADIUS not found — upstream logic changed")
-    fragment = fragment.replace(old_radius, new_radius)
-
-    old_accuracy_fn = """  function borderToleranceAccuracy(userStrokes, templateStrokes, radius) {
-    var userPoints = flattenStrokes(userStrokes);
-    var templatePoints = flattenStrokes(templateStrokes);
-    if (userPoints.length === 0 || templatePoints.length === 0) return 0;
-    var within = 0;
-    for (var i = 0; i < userPoints.length; i++) {
-      var u = userPoints[i];
-      var best = Infinity;
-      for (var j = 0; j < templatePoints.length; j++) {
-        var t = templatePoints[j];
-        var d = Math.hypot(u.x - t.x, u.y - t.y);
-        if (d < best) best = d;
-      }
-      if (best <= radius) within++;
-    }
-    return within / userPoints.length;
+def patch_dark_mode(html: str) -> str:
+    """Add a light-grey dark mode: a header toggle button that flips
+    :root[data-theme] between light and dark, persisted in localStorage, and
+    synced into the SpeakEasy iframe (the only embedded tool left) over
+    postMessage since it's a separate document with its own CSSOM."""
+    old_root_end = """    --select-blue-bg: #E7EEFD;
+    --shadow: 0 16px 40px -20px rgba(33,36,46,0.18);
   }"""
-    new_accuracy_fn = """  function pointToSegmentDistance(p, a, b) {
-    var dx = b.x - a.x, dy = b.y - a.y;
-    var lenSq = dx * dx + dy * dy;
-    if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-    var t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
-    t = Math.max(0, Math.min(1, t));
-    var projX = a.x + t * dx, projY = a.y + t * dy;
-    return Math.hypot(p.x - projX, p.y - projY);
+    new_root_end = """    --select-blue-bg: #E7EEFD;
+    --shadow: 0 16px 40px -20px rgba(33,36,46,0.18);
+    --glass-bg: rgba(255,255,255,0.55);
   }
+  :root[data-theme="dark"]{
+    --ink: #1F2024;
+    --sub: #55565C;
+    --line: #B7B7BB;
+    --panel: #E8E8EA;
+    --bg: #D9D9DC;
+    --bg-tint: #CFCFD2;
+    --shadow: 0 16px 40px -20px rgba(0,0,0,0.35);
+    --glass-bg: rgba(232,232,234,0.75);
+  }"""
+    if old_root_end not in html:
+        raise ValueError("main :root end not found — upstream styles changed")
+    html = html.replace(old_root_end, new_root_end)
 
-  // Distance from a point to the nearest *line segment* of a stroke set,
-  // not just its nearest recorded point. Character templates are typically
-  // authored as a handful of sparse anchor points per stroke (not a dense
-  // freehand recording), so comparing against isolated template points left
-  // real gaps along the letter's actual path — a perfectly-traced point
-  // sitting between two sparse template vertices could read as "far from
-  // the guide" even though it's sitting right on the line between them.
-  function nearestSegmentDistance(point, strokes) {
-    var best = Infinity;
-    for (var i = 0; i < strokes.length; i++) {
-      var stroke = strokes[i];
-      if (stroke.length === 0) continue;
-      if (stroke.length === 1) {
-        var d0 = Math.hypot(point.x - stroke[0].x, point.y - stroke[0].y);
-        if (d0 < best) best = d0;
-        continue;
-      }
-      for (var j = 1; j < stroke.length; j++) {
-        var d = pointToSegmentDistance(point, stroke[j - 1], stroke[j]);
-        if (d < best) best = d;
-      }
-    }
-    return best;
+    old_glass_bg = """    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1.5px solid rgba(229,226,218,0.8);
+    color: var(--ink);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    z-index: 50;
   }
-
-  function borderToleranceAccuracy(userStrokes, templateStrokes, radius) {
-    var userPoints = flattenStrokes(userStrokes);
-    if (userPoints.length === 0 || templateStrokes.length === 0) return 0;
-    var within = 0;
-    for (var i = 0; i < userPoints.length; i++) {
-      if (nearestSegmentDistance(userPoints[i], templateStrokes) <= radius) within++;
-    }
-    return within / userPoints.length;
+  .add-home-btn.show{ display:flex; }
+  .add-home-btn:hover{ border-color: var(--select-blue); color: var(--select-blue); }
+  .help-btn{
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1.5px solid rgba(229,226,218,0.8);
+    color: var(--sub);
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    z-index: 50;
   }
+  .help-btn:hover{ border-color: var(--select-blue); color: var(--select-blue); }"""
+    new_glass_bg = """    background: var(--glass-bg);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1.5px solid rgba(229,226,218,0.8);
+    color: var(--ink);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    z-index: 50;
+  }
+  .add-home-btn.show{ display:flex; }
+  .add-home-btn:hover{ border-color: var(--select-blue); color: var(--select-blue); }
+  .help-btn{
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--glass-bg);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1.5px solid rgba(229,226,218,0.8);
+    color: var(--sub);
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    z-index: 50;
+  }
+  .help-btn:hover{ border-color: var(--select-blue); color: var(--select-blue); }
+  .theme-toggle-btn{
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    width: 34px;
+    height: 34px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius: 50%;
+    background: var(--glass-bg);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1.5px solid rgba(229,226,218,0.8);
+    color: var(--sub);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    z-index: 50;
+  }
+  .theme-toggle-btn:hover{ border-color: var(--select-blue); color: var(--select-blue); }
+  .theme-icon-moon{ display:none; }
+  :root[data-theme="dark"] .theme-icon-sun{ display:none; }
+  :root[data-theme="dark"] .theme-icon-moon{ display:block; }"""
+    if old_glass_bg not in html:
+        raise ValueError("add-home-btn/help-btn CSS not found — upstream styles changed")
+    html = html.replace(old_glass_bg, new_glass_bg)
 
-  // Symmetric to borderToleranceAccuracy: how much of the *guide* was
-  // actually come near, rather than how much of what was drawn is near the
-  // guide. A precise-but-tiny scribble in one corner of a multi-stroke
-  // guide can pass the accuracy check alone without ever tracing most of
-  // the character — this catches that.
-  function borderToleranceCoverage(userStrokes, templateStrokes, radius) {
-    var templatePoints = flattenStrokes(templateStrokes);
-    if (templatePoints.length === 0 || userStrokes.length === 0) return 0;
-    var covered = 0;
-    for (var i = 0; i < templatePoints.length; i++) {
-      if (nearestSegmentDistance(templatePoints[i], userStrokes) <= radius) covered++;
-    }
-    return covered / templatePoints.length;
-  }"""
-    if old_accuracy_fn not in fragment:
-        raise ValueError("writing borderToleranceAccuracy not found — upstream logic changed")
-    fragment = fragment.replace(old_accuracy_fn, new_accuracy_fn)
+    old_help_btn = """  <button class="help-btn" id="help-btn" title="Show a quick tour">?</button>"""
+    new_help_btn = """  <button class="help-btn" id="help-btn" title="Show a quick tour">?</button>
+  <button class="theme-toggle-btn" id="theme-toggle-btn" title="Toggle dark mode" aria-label="Toggle dark mode">
+    <svg class="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    <svg class="theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  </button>"""
+    if old_help_btn not in html:
+        raise ValueError("help-btn markup not found — upstream markup changed")
+    html = html.replace(old_help_btn, new_help_btn)
 
-    old_score_fn = """    var radius = BORDER_TOLERANCE_RADIUS * (0.5 + tolerance);
-    var accuracy = borderToleranceAccuracy(userStrokes, templateStrokes, radius);
+    old_open_speakeasy = """function openSpeakEasy(){
+  if(!speakeasyBlobUrl){
+    const src = document.getElementById('speakeasy-src').innerHTML;
+    const blob = new Blob([src], { type: 'text/html' });
+    speakeasyBlobUrl = URL.createObjectURL(blob);
+  }
+  if(!speakeasyFrame.src) speakeasyFrame.src = speakeasyBlobUrl;
+  speakeasyOverlay.classList.add('show');
+}"""
+    new_open_speakeasy = """function currentTheme(){ return document.documentElement.getAttribute('data-theme') || 'light'; }
+function sendThemeToSpeakEasy(){
+  if(!speakeasyFrame.contentWindow) return;
+  try{ speakeasyFrame.contentWindow.postMessage({ type: 'wordly:theme', theme: currentTheme() }, '*'); }catch(err){}
+}
+function openSpeakEasy(){
+  if(!speakeasyBlobUrl){
+    const src = document.getElementById('speakeasy-src').innerHTML;
+    const blob = new Blob([src], { type: 'text/html' });
+    speakeasyBlobUrl = URL.createObjectURL(blob);
+  }
+  if(!speakeasyFrame.src){
+    speakeasyFrame.addEventListener('load', sendThemeToSpeakEasy);
+    speakeasyFrame.src = speakeasyBlobUrl;
+  }
+  sendThemeToSpeakEasy();
+  speakeasyOverlay.classList.add('show');
+}"""
+    if old_open_speakeasy not in html:
+        raise ValueError("openSpeakEasy() not found — upstream logic changed")
+    html = html.replace(old_open_speakeasy, new_open_speakeasy)
 
-    return {"""
-    new_score_fn = """    var radius = BORDER_TOLERANCE_RADIUS * (0.5 + tolerance);
-    var precision = borderToleranceAccuracy(userStrokes, templateStrokes, radius);
-    var coverage = borderToleranceCoverage(userStrokes, templateStrokes, radius);
-    var accuracy = Math.min(precision, coverage);
+    old_help_wire = """document.getElementById('help-btn').addEventListener('click', startTour);"""
+    new_help_wire = """document.getElementById('help-btn').addEventListener('click', startTour);
 
-    return {"""
-    if old_score_fn not in fragment:
-        raise ValueError("writing scoreAttempt radius/accuracy lines not found — upstream logic changed")
-    fragment = fragment.replace(old_score_fn, new_score_fn)
+// ---------------- dark mode ----------------
+(function(){
+  var THEME_KEY = 'wordly_theme';
+  function applyTheme(theme){
+    document.documentElement.setAttribute('data-theme', theme);
+    sendThemeToSpeakEasy();
+  }
+  var storedTheme = null;
+  try{ storedTheme = localStorage.getItem(THEME_KEY); }catch(e){}
+  applyTheme(storedTheme === 'dark' ? 'dark' : 'light');
+  document.getElementById('theme-toggle-btn').addEventListener('click', function(){
+    var next = currentTheme() === 'dark' ? 'light' : 'dark';
+    try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+    applyTheme(next);
+  });
+})();"""
+    if old_help_wire not in html:
+        raise ValueError("help-btn wiring not found — upstream logic changed")
+    html = html.replace(old_help_wire, new_help_wire)
 
-    return fragment
-
-
-def patch_writing_prev_btn(fragment: str) -> str:
-    """Add a "Previous" button to go back a character, sharing the toolbar
-    row above the writing pad with the existing "Redo" and "Next" buttons —
-    Previous flush to the left edge, Next flush to the right edge, Redo
-    sitting on its own dead-center between them (space-between with exactly
-    three same-sized items centers the middle one)."""
-
-    old_toolbar = """    <div class="pad-toolbar">
-      <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
-      </button>
-      <button class="pad-icon-btn" id="skip-btn" title="Next" aria-label="Next">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
-      </button>
-    </div>"""
-    new_toolbar = """    <div class="pad-toolbar">
-      <button class="pad-icon-btn" id="prev-btn" title="Previous" aria-label="Previous">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
-      </button>
-      <button class="pad-icon-btn" id="clear-btn" title="Redo" aria-label="Redo">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
-      </button>
-      <button class="pad-icon-btn" id="skip-btn" title="Next" aria-label="Next">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
-      </button>
-    </div>"""
-    if old_toolbar not in fragment:
-        raise ValueError("writing pad-toolbar markup not found — upstream layout changed")
-    fragment = fragment.replace(old_toolbar, new_toolbar)
-
-    old_toolbar_css = """  .pad-toolbar {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    max-width: 380px;
-    margin: 0 auto 8px;
-    padding: 0 4px;
-  }"""
-    new_toolbar_css = """  .pad-toolbar {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    max-width: 380px;
-    margin: 0 auto 8px;
-    padding: 0 4px;
-  }"""
-    if old_toolbar_css not in fragment:
-        raise ValueError("writing .pad-toolbar CSS not found — upstream styles changed")
-    fragment = fragment.replace(old_toolbar_css, new_toolbar_css)
-
-    old_listener = """document.getElementById("skip-btn").onclick = function () { goToIndex(practice.index + 1); };"""
-    new_listener = """document.getElementById("prev-btn").onclick = function () { goToIndex(practice.index - 1); };
-  document.getElementById("skip-btn").onclick = function () { goToIndex(practice.index + 1); };"""
-    if old_listener not in fragment:
-        raise ValueError("writing skip-btn listener not found — upstream logic changed")
-    fragment = fragment.replace(old_listener, new_listener)
-
-    return fragment
-
-
-def patch_writing_remove_auto_check(fragment: str) -> str:
-    """Drop the automatic tracing check entirely — after several rounds of
-    tolerance/algorithm fixes it was still flagged as unreliable. Simpler
-    and more predictable: let the user draw freely with no pass/fail
-    judgment, and move between characters only via the explicit
-    Previous/Next buttons. This is a one-line change since onStrokeEnd is
-    already an optional callback — just stop wiring handleCheck (and the
-    scoring/auto-advance path hanging off it) into the pad at all."""
-
-    old_open_practice = """    practice.pad = createWritingPad(canvas, padSize(), handleCheck);"""
-    new_open_practice = """    practice.pad = createWritingPad(canvas, padSize());"""
-    if old_open_practice not in fragment:
-        raise ValueError("writing openPractice() pad wiring not found — upstream logic changed")
-    fragment = fragment.replace(old_open_practice, new_open_practice)
-
-    return fragment
+    return html
 
 
 def inject_after_head(fragment: str) -> str:
@@ -1162,21 +1093,11 @@ def patch_template(html: str, template_id: str) -> str:
     start = html.index(start_marker)
     end = html.index("</template>", start)
     before, fragment, after = html[:start], html[start:end], html[end:]
-    if template_id in ("speakeasy-src", "writing-src"):
-        fragment = inject_after_head(fragment)
     if template_id == "speakeasy-src":
+        fragment = inject_after_head(fragment)
         fragment = patch_speakeasy_share_save(fragment)
         fragment = patch_speakeasy_credit_caption(fragment)
-    elif template_id == "writing-src":
-        fragment = patch_writing_persistent_back_btn(fragment)
-        fragment = patch_writing_remove_practice_back_link(fragment)
-        fragment = patch_writing_guide_tolerance(fragment)
-        fragment = patch_writing_prev_btn(fragment)
-        fragment = patch_writing_remove_auto_check(fragment)
-    elif template_id == "scanline-src":
-        fragment = patch_scanline_ocr_confidence(fragment)
-        fragment = patch_scanline_lang_prompt(fragment)
-        fragment = patch_scanline_share_download(fragment)
+        fragment = patch_speakeasy_theme(fragment)
     return before + fragment + after
 
 
@@ -1187,8 +1108,14 @@ def main():
     src_dir = Path(sys.argv[1])
     src_html = (src_dir / "index.html").read_text(encoding="utf-8")
 
-    for template_id in ("speakeasy-src", "writing-src", "scanline-src"):
+    for template_id in ("speakeasy-src",):
         src_html = patch_template(src_html, template_id)
+
+    src_html = patch_remove_scanline_tool(src_html)
+    src_html = patch_remove_writing_tool(src_html)
+    src_html = patch_remove_footer_and_social(src_html)
+    src_html = patch_white_background(src_html)
+    src_html = patch_dark_mode(src_html)
 
     marker = "</body>"
     idx = src_html.rindex(marker)
