@@ -671,6 +671,9 @@ def patch_speakeasy_theme(fragment: str) -> str:
         raise ValueError("speakeasy html background not found — upstream styles changed")
     fragment = fragment.replace(old_html_bg, new_html_bg)
 
+    fragment = _remove_block(fragment, "  .chakra-watermark{", "\n\n  header.hero {")
+    fragment = _remove_block(fragment, '<svg class="chakra-watermark"', "</svg>\n\n<div class=\"phone\">")
+
     old_close = """</script>
 </body>
 </html>"""
@@ -892,6 +895,14 @@ def patch_white_background(html: str) -> str:
     return html
 
 
+def patch_remove_chakra_watermark(html: str) -> str:
+    """Drop the large faint chakra-wheel SVG watermarked behind the main
+    page's content."""
+    html = _remove_block(html, "  .chakra-watermark{", "\n\n  /* ---------- onboarding tour ---------- */")
+    html = _remove_block(html, '<svg class="chakra-watermark"', "</svg>\n\n<header>")
+    return html
+
+
 def patch_dark_mode(html: str) -> str:
     """Add a light-grey dark mode: a header toggle button that flips
     :root[data-theme] between light and dark, persisted in localStorage, and
@@ -1050,8 +1061,22 @@ function openSpeakEasy(){
         raise ValueError("openSpeakEasy() not found — upstream logic changed")
     html = html.replace(old_open_speakeasy, new_open_speakeasy)
 
-    old_help_wire = """document.getElementById('help-btn').addEventListener('click', startTour);"""
-    new_help_wire = """document.getElementById('help-btn').addEventListener('click', startTour);
+    # The theme-toggle init IIFE must run only after speakeasyFrame/speakeasyOverlay
+    # (const, not hoisted) are actually declared -- anchoring it any earlier
+    # (e.g. right after help-btn's wiring, which runs first) hits their
+    # temporal dead zone the moment applyTheme() -> sendThemeToSpeakEasy()
+    # touches speakeasyFrame, throwing and aborting the rest of the script
+    # (silently breaking the mic button and everything below it).
+    old_speakeasy_wiring = """micBtn.addEventListener('click', openSpeakEasy);
+document.getElementById('speakeasy-close-btn').addEventListener('click', closeSpeakEasy);
+speakeasyOverlay.addEventListener('click', (e)=>{
+  if(e.target === speakeasyOverlay) closeSpeakEasy();
+});"""
+    new_speakeasy_wiring = """micBtn.addEventListener('click', openSpeakEasy);
+document.getElementById('speakeasy-close-btn').addEventListener('click', closeSpeakEasy);
+speakeasyOverlay.addEventListener('click', (e)=>{
+  if(e.target === speakeasyOverlay) closeSpeakEasy();
+});
 
 // ---------------- dark mode ----------------
 (function(){
@@ -1069,9 +1094,9 @@ function openSpeakEasy(){
     applyTheme(next);
   });
 })();"""
-    if old_help_wire not in html:
-        raise ValueError("help-btn wiring not found — upstream logic changed")
-    html = html.replace(old_help_wire, new_help_wire)
+    if old_speakeasy_wiring not in html:
+        raise ValueError("speakeasy wiring block not found — upstream logic changed")
+    html = html.replace(old_speakeasy_wiring, new_speakeasy_wiring)
 
     return html
 
@@ -1115,6 +1140,7 @@ def main():
     src_html = patch_remove_writing_tool(src_html)
     src_html = patch_remove_footer_and_social(src_html)
     src_html = patch_white_background(src_html)
+    src_html = patch_remove_chakra_watermark(src_html)
     src_html = patch_dark_mode(src_html)
 
     marker = "</body>"
