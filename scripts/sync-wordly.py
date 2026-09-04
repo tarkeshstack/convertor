@@ -923,6 +923,32 @@ def patch_examples_only_when_to_english(html: str) -> str:
     return html
 
 
+def patch_lang_card_text_clear_listen_btn(html: str) -> str:
+    """The listen button in .card-actions is absolutely positioned over the
+    top-right corner of the .lang-card (so it doesn't reserve space in the
+    grid layout) -- for a long translated sentence that wraps onto multiple
+    lines, its first line runs straight under that button and gets visually
+    covered/truncated, exactly as in a user screenshot. Reserve enough
+    right-padding on .lang-word for the button so wrapped text clears it."""
+    old = """  .lang-word{
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--ink);
+    word-break: break-word;
+  }"""
+    new = """  .lang-word{
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--ink);
+    word-break: break-word;
+    padding-right: 36px;
+  }"""
+    if old not in html:
+        raise ValueError(".lang-word CSS not found — upstream styles changed")
+    html = html.replace(old, new)
+    return html
+
+
 def patch_dark_mode(html: str) -> str:
     """Add a light-grey dark mode: a header toggle button that flips
     :root[data-theme] between light and dark, persisted in localStorage, and
@@ -1162,6 +1188,7 @@ def main():
     src_html = patch_white_background(src_html)
     src_html = patch_remove_chakra_watermark(src_html)
     src_html = patch_examples_only_when_to_english(src_html)
+    src_html = patch_lang_card_text_clear_listen_btn(src_html)
     src_html = patch_dark_mode(src_html)
 
     marker = "</body>"
