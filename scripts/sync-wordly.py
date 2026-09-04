@@ -649,6 +649,45 @@ def patch_speakeasy_theme(fragment: str) -> str:
     return fragment
 
 
+def patch_speakeasy_lang_select_borderless(fragment: str) -> str:
+    """The Speak in / Translate to <select> boxes (.picker select) already
+    set border: none, but never suppress the browser/WebView's own default
+    focus ring -- which Android draws as a vivid orange outline around the
+    whole box while it's open, unlike the home page's own selects (which
+    explicitly set outline: none on :focus). Suppress it here too, for the
+    same flat/borderless look as the home page."""
+    old = """  .picker select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--on-surface);
+    padding-right: 20px;
+  }"""
+    new = """  .picker select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--on-surface);
+    padding-right: 20px;
+  }
+  .picker select:focus { outline: none; }"""
+    if old not in fragment:
+        raise ValueError(".picker select CSS not found — upstream styles changed")
+    fragment = fragment.replace(old, new)
+    return fragment
+
+
 def _remove_block(html: str, start_marker: str, end_marker: str, *, use_rindex: bool = False) -> str:
     """Delete everything from start_marker up to (not including) end_marker.
     Pass use_rindex=True when end_marker's text also appears earlier inside
@@ -1123,6 +1162,7 @@ def patch_template(html: str, template_id: str) -> str:
         fragment = inject_after_head(fragment)
         fragment = patch_speakeasy_share_save(fragment)
         fragment = patch_speakeasy_theme(fragment)
+        fragment = patch_speakeasy_lang_select_borderless(fragment)
     return before + fragment + after
 
 

@@ -4131,6 +4131,7 @@ window.addEventListener('message', (e)=>{
     -webkit-appearance: none;
     width: 100%;
     border: none;
+    outline: none;
     background: transparent;
     font-family: var(--font-body);
     font-size: 16px;
@@ -4138,6 +4139,7 @@ window.addEventListener('message', (e)=>{
     color: var(--on-surface);
     padding-right: 20px;
   }
+  .picker select:focus { outline: none; }
   .picker::after {
     content: "";
     position: absolute;
