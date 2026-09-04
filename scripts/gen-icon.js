@@ -36,25 +36,38 @@ function glyphGrid(span, strokeWidth) {
   }).join('');
 }
 
+// Full-bleed version for the launcher icon: four quadrants that together
+// cover the *entire* canvas edge to edge, no gap and no background showing
+// anywhere -- unlike glyphGrid() above (used for the splash, where a
+// smaller mosaic centered on a plain background is the point), this is for
+// "no white space, fill all space in icon".
+function glyphQuadrants(fontScale) {
+  const half = 1024 / 2;
+  return TILES.map((t, i) => {
+    const col = i % 2, row = Math.floor(i / 2);
+    const x = col * half, y = row * half;
+    const cx = x + half / 2, cy = y + half / 2;
+    return `
+      <rect x="${x}" y="${y}" width="${half}" height="${half}" fill="${t.color}"/>
+      <text x="${cx}" y="${cy}" font-size="${half * fontScale}" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF" font-family="${t.font}" font-weight="bold">${t.glyph}</text>`;
+  }).join('');
+}
+
 const iconSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect width="1024" height="1024" rx="225" fill="#FFFFFF"/>
-  ${glyphGrid(760)}
+  ${glyphQuadrants(0.56)}
 </svg>
 `;
 
-// Adaptive icon: keep the mosaic well inside the safe zone (~66% of the
-// canvas) since launchers crop the foreground layer to a circle, squircle,
-// rounded square, etc.
-const iconSvgFg = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  ${glyphGrid(560)}
-</svg>
-`;
-
+// Adaptive icon: both layers carry the same full-bleed quadrant art (not
+// just the foreground) so that whatever shape a launcher crops it to, or
+// however far it shifts the foreground during its parallax effect, there's
+// still color at the edges instead of the background layer showing through
+// as a blank margin.
+const iconSvgFg = iconSvg;
 const iconSvgBg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect width="1024" height="1024" fill="#FFFFFF"/>
+  ${glyphQuadrants(0.42)}
 </svg>
 `;
 
