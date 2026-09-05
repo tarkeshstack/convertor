@@ -85,6 +85,9 @@ fun CommandManagerScreen(
     onGetLink: (currentPackage: String?) -> Unit,
     onBack: () -> Unit,
     onToggleVisibleOnHome: (CustomCommand) -> Unit,
+    /** Ids of commands run with a keyword at least once this session — colors a command's
+     *  keyboard badge green once it's been fed one, red until then. */
+    keywordFedCommandIds: Set<String>,
     /** Opens straight into the add-command form — used when this screen is reached via
      *  the home screen's "Add command"/edit-pencil row rather than the header icon. */
     openAddFormInitially: Boolean = false,
@@ -207,6 +210,7 @@ fun CommandManagerScreen(
                                         },
                                         onToggleVisibleOnHome = { onToggleVisibleOnHome(command) },
                                         onDelete = { onDelete(command.id) },
+                                        fedIn = command.id in keywordFedCommandIds,
                                     )
                                     if (index != commands.lastIndex) {
                                         HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))
@@ -259,6 +263,7 @@ private fun CommandRow(
     onEdit: () -> Unit,
     onToggleVisibleOnHome: () -> Unit,
     onDelete: () -> Unit,
+    fedIn: Boolean,
 ) {
     val app = remember(command.packageName, allApps) {
         allApps.firstOrNull { it.packageName == command.packageName }
@@ -305,8 +310,8 @@ private fun CommandRow(
         if (command.deepLinkUri?.contains(PLACEHOLDER) == true) {
             Icon(
                 Icons.Filled.Keyboard,
-                contentDescription = "Needs a keyword to run",
-                tint = MaterialTheme.colorScheme.secondary,
+                contentDescription = if (fedIn) "Run with a keyword this session" else "Needs a keyword to run",
+                tint = if (fedIn) KeywordInputFilled else KeywordInputEmpty,
                 modifier = Modifier.size(15.dp).padding(end = 2.dp),
             )
         }

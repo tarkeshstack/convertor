@@ -38,6 +38,10 @@ data class UiState(
     val isListening: Boolean = false,
     val pendingCapturedLink: CapturedLink? = null,
     val pendingSpeech: SpeechRequest? = null,
+    /** Ids of commands run with a keyword at least once this session — not persisted, so
+     *  it resets on the next launch; used only to color a command's keyboard badge green
+     *  once it's been fed a keyword, since the saved command itself never keeps one. */
+    val keywordFedCommandIds: Set<String> = emptySet(),
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -219,6 +223,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun runCustomCommandWithKeyword(id: String, keyword: String) {
         val custom = _uiState.value.customCommands.firstOrNull { it.id == id } ?: return
         val filledUri = custom.deepLinkUri?.replace(DEEP_LINK_PLACEHOLDER, Uri.encode(keyword.trim()))
+        _uiState.update { it.copy(keywordFedCommandIds = it.keywordFedCommandIds + id) }
         runExecution(successMessage = "Ran \"${custom.label}\"") {
             executor.runCustomCommand(custom.copy(deepLinkUri = filledUri))
         }

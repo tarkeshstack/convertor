@@ -74,6 +74,8 @@ import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.model.DEEP_LINK_PLACEHOLDER
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
+import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputEmpty
+import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputFilled
 
 private enum class HomeTab { Apps, Commands }
 
@@ -173,6 +175,7 @@ fun SearchScreen(
                 },
                 onEdit = { onEditCommand(command) },
                 onHide = { viewModel.setCommandVisibleOnHome(command.id, false) },
+                fedIn = command.id in state.keywordFedCommandIds,
             )
         }
 
@@ -337,6 +340,7 @@ private fun CommandListRow(
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onHide: () -> Unit,
+    fedIn: Boolean,
 ) {
     Surface(
         onClick = onClick,
@@ -379,8 +383,12 @@ private fun CommandListRow(
             if (command.deepLinkUri?.contains(DEEP_LINK_PLACEHOLDER) == true) {
                 Icon(
                     Icons.Filled.Keyboard,
-                    contentDescription = "Needs a keyword to run",
-                    tint = MaterialTheme.colorScheme.secondary,
+                    contentDescription = if (fedIn) {
+                        "Run with a keyword this session"
+                    } else {
+                        "Needs a keyword to run"
+                    },
+                    tint = if (fedIn) KeywordInputFilled else KeywordInputEmpty,
                     modifier = Modifier.size(16.dp),
                 )
             }
