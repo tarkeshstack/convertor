@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputEmpty
+import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputFilled
 
 /** A one-field prompt for the keyword a command's link still needs before it can run —
  *  the value is only used for this run, so the saved command stays a reusable template.
@@ -58,6 +61,21 @@ fun QuickFillDialog(
                     keyboardActions = KeyboardActions(
                         onGo = { if (keyword.isNotBlank()) onRun(keyword) },
                     ),
+                    // Not filled in yet reads as a light red outline; once something is
+                    // typed it turns light green, so the field itself signals whether
+                    // it's ready to run.
+                    colors = if (keyword.isNotBlank()) {
+                        OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = KeywordInputFilled,
+                            unfocusedBorderColor = KeywordInputFilled,
+                            cursorColor = KeywordInputFilled,
+                        )
+                    } else {
+                        OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = KeywordInputEmpty,
+                            unfocusedBorderColor = KeywordInputEmpty,
+                        )
+                    },
                 )
                 Spacer(Modifier.height(16.dp))
                 Button(

@@ -9,7 +9,7 @@ enum class CustomCommandKind { DEEP_LINK, SYSTEM_SHORTCUT }
  * [kind] DEEP_LINK opens [deepLinkUri] via ACTION_VIEW, optionally restricted to
  * [packageName] so it opens in a specific app rather than whatever the device would
  * otherwise pick for that URI. SYSTEM_SHORTCUT fires [systemAction] as a bare Intent
- * action, e.g. into Wi-Fi or wallpaper settings.
+ * action, e.g. into Wi-Fi or Bluetooth settings.
  *
  * [visibleOnHome] is per-command — each one is shown or hidden on the home screen's
  * quick-access list independently, rather than one all-or-nothing switch for all of

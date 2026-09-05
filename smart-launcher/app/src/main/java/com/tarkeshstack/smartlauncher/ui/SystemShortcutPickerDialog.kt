@@ -28,8 +28,8 @@ import androidx.compose.ui.window.Dialog
 import com.tarkeshstack.smartlauncher.model.SystemShortcut
 import com.tarkeshstack.smartlauncher.model.SystemShortcuts
 
-/** A modal list of built-in Android system shortcuts (Wi-Fi, wallpaper, cards & payments,
- *  ...) that can be saved as a command the same way an app deep link can. */
+/** A modal list of built-in Android system shortcuts (Wi-Fi, Bluetooth, all settings) that
+ *  can be saved as a command the same way an app deep link can. */
 @Composable
 fun SystemShortcutPickerDialog(
     onDismiss: () -> Unit,

@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Link
@@ -143,6 +144,38 @@ fun SearchScreen(
             .filter { it.visibleOnHome }
             .sortedBy { if (it.kind == CustomCommandKind.SYSTEM_SHORTCUT) 1 else 0 }
 
+        // While typing, the Apps/Commands split gives way to one merged list — apps
+        // matching the text, plus any command whose own phrase matches or that's linked
+        // to one of those apps (so typing "wifi" surfaces the wifi command even though no
+        // app is named "wifi").
+        val isSearching = state.query.isNotBlank()
+        val relatedCommands = if (isSearching) {
+            val needle = state.query.trim().lowercase()
+            visibleCommands.filter { command ->
+                command.phrase.lowercase().contains(needle) ||
+                    state.filteredApps.any { it.packageName == command.packageName }
+            }
+        } else {
+            emptyList()
+        }
+
+        @Composable
+        fun commandRow(command: CustomCommand) {
+            CommandListRow(
+                command = command,
+                app = state.allApps.firstOrNull { it.packageName == command.packageName },
+                onClick = {
+                    if (command.deepLinkUri?.contains(DEEP_LINK_PLACEHOLDER) == true) {
+                        quickFillCommand = command
+                    } else {
+                        viewModel.runCustomCommandById(command.id)
+                    }
+                },
+                onEdit = { onEditCommand(command) },
+                onHide = { viewModel.setCommandVisibleOnHome(command.id, false) },
+            )
+        }
+
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // The search field and the Apps/Commands tabs never scroll away — they sit
             // above the list, not inside it, so switching tabs (or adding a command, on
@@ -154,19 +187,34 @@ fun SearchScreen(
                     value = state.query,
                     onValueChange = viewModel::onQueryChanged,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Try \"wifi\", \"youtube search\", or an app name…") },
+                    placeholder = { Text("App name or custom commands") },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     trailingIcon = {
-                        IconButton(onClick = onMicTapped) {
-                            Icon(
-                                if (state.isListening) Icons.Filled.Mic else Icons.Filled.MicOff,
-                                contentDescription = "Voice input",
-                                tint = if (state.isListening) {
-                                    MaterialTheme.colorScheme.secondary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (state.query.isNotBlank()) {
+                                IconButton(
+                                    onClick = { viewModel.onQueryChanged("") },
+                                    modifier = Modifier.size(36.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "Clear search",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+                            IconButton(onClick = onMicTapped) {
+                                Icon(
+                                    if (state.isListening) Icons.Filled.Mic else Icons.Filled.MicOff,
+                                    contentDescription = "Voice input",
+                                    tint = if (state.isListening) {
+                                        MaterialTheme.colorScheme.secondary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            }
                         }
                     },
                     singleLine = true,
@@ -196,42 +244,46 @@ fun SearchScreen(
                     QuickActionCard(label = command.label, onClick = viewModel::runCommand)
                 }
 
-                Spacer(Modifier.height(12.dp))
-                TabRow(selectedTabIndex = selectedTab.ordinal) {
-                    Tab(
-                        selected = selectedTab == HomeTab.Apps,
-                        onClick = { selectedTab = HomeTab.Apps },
-                        text = { Text("Apps") },
-                    )
-                    Tab(
-                        selected = selectedTab == HomeTab.Commands,
-                        onClick = { selectedTab = HomeTab.Commands },
-                        text = { Text("Commands") },
-                    )
-                }
-
-                if (selectedTab == HomeTab.Commands) {
-                    Spacer(Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "Manage all",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f).clickable(onClick = onOpenCommandManager),
+                // Searching replaces the tabs outright — a single merged list underneath
+                // says more than which of two tabs is active.
+                if (!isSearching) {
+                    Spacer(Modifier.height(12.dp))
+                    TabRow(selectedTabIndex = selectedTab.ordinal) {
+                        Tab(
+                            selected = selectedTab == HomeTab.Apps,
+                            onClick = { selectedTab = HomeTab.Apps },
+                            text = { Text("Apps") },
                         )
-                        IconButton(onClick = onAddCommand, modifier = Modifier.size(32.dp)) {
-                            Icon(
-                                Icons.Filled.Add,
-                                contentDescription = "Add command",
-                                tint = MaterialTheme.colorScheme.primary,
+                        Tab(
+                            selected = selectedTab == HomeTab.Commands,
+                            onClick = { selectedTab = HomeTab.Commands },
+                            text = { Text("Commands") },
+                        )
+                    }
+
+                    if (selectedTab == HomeTab.Commands) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Manage all",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f).clickable(onClick = onOpenCommandManager),
                             )
+                            IconButton(onClick = onAddCommand, modifier = Modifier.size(32.dp)) {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = "Add command",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     }
+                    Spacer(Modifier.height(6.dp))
                 }
-                Spacer(Modifier.height(6.dp))
             }
 
             LazyColumn(
@@ -241,27 +293,20 @@ fun SearchScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                when (selectedTab) {
-                    HomeTab.Apps -> {
-                        items(state.filteredApps, key = { it.packageName }) { app ->
-                            AppRow(app = app, onClick = { viewModel.launchApp(app) })
-                        }
+                if (isSearching) {
+                    items(relatedCommands, key = { "cmd_${it.id}" }) { command -> commandRow(command) }
+                    items(state.filteredApps, key = { it.packageName }) { app ->
+                        AppRow(app = app, onClick = { viewModel.launchApp(app) })
                     }
-                    HomeTab.Commands -> {
-                        items(visibleCommands, key = { it.id }) { command ->
-                            CommandListRow(
-                                command = command,
-                                app = state.allApps.firstOrNull { it.packageName == command.packageName },
-                                onClick = {
-                                    if (command.deepLinkUri?.contains(DEEP_LINK_PLACEHOLDER) == true) {
-                                        quickFillCommand = command
-                                    } else {
-                                        viewModel.runCustomCommandById(command.id)
-                                    }
-                                },
-                                onEdit = { onEditCommand(command) },
-                                onHide = { viewModel.setCommandVisibleOnHome(command.id, false) },
-                            )
+                } else {
+                    when (selectedTab) {
+                        HomeTab.Apps -> {
+                            items(state.filteredApps, key = { it.packageName }) { app ->
+                                AppRow(app = app, onClick = { viewModel.launchApp(app) })
+                            }
+                        }
+                        HomeTab.Commands -> {
+                            items(visibleCommands, key = { it.id }) { command -> commandRow(command) }
                         }
                     }
                 }

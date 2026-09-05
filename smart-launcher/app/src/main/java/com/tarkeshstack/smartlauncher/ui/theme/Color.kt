@@ -30,3 +30,8 @@ val LauncherSurfaceDark = Color(0xFF121316)
 val LauncherSurfaceVariantDark = Color(0xFF232529)
 val LauncherOnSurfaceDark = Color(0xFFE8E9EC)
 val LauncherOutlineDark = Color(0xFF4B4E54)
+
+// Feedback for a still-empty required keyword field vs. one that's been filled in — not
+// theme-derived, since the whole point is to stand out as its own red/green signal.
+val KeywordInputEmpty = Color(0xFFEF9A9A)
+val KeywordInputFilled = Color(0xFFA5D6A7)

@@ -39,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -65,6 +66,8 @@ import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.model.DEEP_LINK_PLACEHOLDER
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
+import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputEmpty
+import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputFilled
 import java.util.UUID
 
 private const val PLACEHOLDER = DEEP_LINK_PLACEHOLDER
@@ -463,6 +466,21 @@ private fun AddCommandForm(
                         },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
+                        // Not filled in yet reads as a light red outline; once something is
+                        // typed it turns light green, so the field itself signals whether
+                        // it's ready to save.
+                        colors = if (draft.placeholderValue.isNotBlank()) {
+                            OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = KeywordInputFilled,
+                                unfocusedBorderColor = KeywordInputFilled,
+                                cursorColor = KeywordInputFilled,
+                            )
+                        } else {
+                            OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = KeywordInputEmpty,
+                                unfocusedBorderColor = KeywordInputEmpty,
+                            )
+                        },
                     )
                     Text(
                         if (draft.placeholderValue.isNotBlank()) {
