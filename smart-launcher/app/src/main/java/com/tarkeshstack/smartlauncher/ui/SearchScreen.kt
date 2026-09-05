@@ -167,8 +167,15 @@ fun SearchScreen(
                 command = command,
                 app = state.allApps.firstOrNull { it.packageName == command.packageName },
                 onClick = {
+                    val savedKeyword = command.lastKeyword
                     if (command.deepLinkUri?.contains(DEEP_LINK_PLACEHOLDER) == true) {
-                        quickFillCommand = command
+                        if (savedKeyword != null) {
+                            // Already fed a keyword before — run straight away with it
+                            // instead of asking again every time.
+                            viewModel.runCustomCommandWithKeyword(command.id, savedKeyword)
+                        } else {
+                            quickFillCommand = command
+                        }
                     } else {
                         viewModel.runCustomCommandById(command.id)
                     }
