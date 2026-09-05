@@ -42,6 +42,8 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -72,6 +74,8 @@ import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.model.DEEP_LINK_PLACEHOLDER
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
 
+private enum class HomeTab { Apps, Commands }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
@@ -86,6 +90,7 @@ fun SearchScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var quickFillCommand by remember { mutableStateOf<CustomCommand?>(null) }
+    var selectedTab by remember { mutableStateOf(HomeTab.Apps) }
 
     LaunchedEffect(state.statusMessage) {
         state.statusMessage?.let {
@@ -131,23 +136,18 @@ fun SearchScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
     ) { padding ->
-        // Only commands not hidden show on the home screen, each with its own hide eye
-        // and edit pencil; a hidden one stays fully manageable (show again, edit,
-        // delete) in "Your commands" only. While actively searching it narrows further
-        // to just the ones linked to an app that's still in the results.
-        val isSearching = state.query.isNotBlank()
-        val visibleCommands = if (isSearching) {
-            state.customCommands.filter { command ->
-                command.visibleOnHome && state.filteredApps.any { it.packageName == command.packageName }
-            }
-        } else {
-            state.customCommands.filter { it.visibleOnHome }
-        }
+        // Commands not hidden, app-linked ones first and system shortcuts after — each
+        // still carries its own hide eye and edit pencil; a hidden one stays fully
+        // manageable (show again, edit, delete) in "Your commands" only.
+        val visibleCommands = state.customCommands
+            .filter { it.visibleOnHome }
+            .sortedBy { if (it.kind == CustomCommandKind.SYSTEM_SHORTCUT) 1 else 0 }
 
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // The search field and the "Commands" header (with its + to add one) never
-            // scroll away — they sit above the list, not inside it, so adding a command is
-            // always one tap away no matter how far down the list below is scrolled.
+            // The search field and the Apps/Commands tabs never scroll away — they sit
+            // above the list, not inside it, so switching tabs (or adding a command, on
+            // the Commands tab) is always available no matter how far down the list below
+            // is scrolled.
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Spacer(Modifier.height(8.dp))
                 TextField(
@@ -196,23 +196,39 @@ fun SearchScreen(
                     QuickActionCard(label = command.label, onClick = viewModel::runCommand)
                 }
 
-                Spacer(Modifier.height(18.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "Commands",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f).clickable(onClick = onOpenCommandManager),
+                Spacer(Modifier.height(12.dp))
+                TabRow(selectedTabIndex = selectedTab.ordinal) {
+                    Tab(
+                        selected = selectedTab == HomeTab.Apps,
+                        onClick = { selectedTab = HomeTab.Apps },
+                        text = { Text("Apps") },
                     )
-                    IconButton(onClick = onAddCommand, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            Icons.Filled.Add,
-                            contentDescription = "Add command",
-                            tint = MaterialTheme.colorScheme.primary,
+                    Tab(
+                        selected = selectedTab == HomeTab.Commands,
+                        onClick = { selectedTab = HomeTab.Commands },
+                        text = { Text("Commands") },
+                    )
+                }
+
+                if (selectedTab == HomeTab.Commands) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Manage all",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f).clickable(onClick = onOpenCommandManager),
                         )
+                        IconButton(onClick = onAddCommand, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = "Add command",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(6.dp))
@@ -225,28 +241,28 @@ fun SearchScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(visibleCommands, key = { it.id }) { command ->
-                    CommandListRow(
-                        command = command,
-                        app = state.allApps.firstOrNull { it.packageName == command.packageName },
-                        onClick = {
-                            if (command.deepLinkUri?.contains(DEEP_LINK_PLACEHOLDER) == true) {
-                                quickFillCommand = command
-                            } else {
-                                viewModel.runCustomCommandById(command.id)
-                            }
-                        },
-                        onEdit = { onEditCommand(command) },
-                        onHide = { viewModel.setCommandVisibleOnHome(command.id, false) },
-                    )
-                }
-
-                // The app list itself is search-only now — nothing is listed until you
-                // type, so the home screen isn't just the entire installed-app list by
-                // default.
-                if (isSearching) {
-                    items(state.filteredApps, key = { it.packageName }) { app ->
-                        AppRow(app = app, onClick = { viewModel.launchApp(app) })
+                when (selectedTab) {
+                    HomeTab.Apps -> {
+                        items(state.filteredApps, key = { it.packageName }) { app ->
+                            AppRow(app = app, onClick = { viewModel.launchApp(app) })
+                        }
+                    }
+                    HomeTab.Commands -> {
+                        items(visibleCommands, key = { it.id }) { command ->
+                            CommandListRow(
+                                command = command,
+                                app = state.allApps.firstOrNull { it.packageName == command.packageName },
+                                onClick = {
+                                    if (command.deepLinkUri?.contains(DEEP_LINK_PLACEHOLDER) == true) {
+                                        quickFillCommand = command
+                                    } else {
+                                        viewModel.runCustomCommandById(command.id)
+                                    }
+                                },
+                                onEdit = { onEditCommand(command) },
+                                onHide = { viewModel.setCommandVisibleOnHome(command.id, false) },
+                            )
+                        }
                     }
                 }
 
