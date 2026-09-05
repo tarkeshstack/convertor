@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +51,15 @@ fun QuickFillDialog(
                     value = keyword,
                     onValueChange = { keyword = it },
                     placeholder = { Text("Type a keyword…") },
+                    // The keyboard icon itself is light red while empty and light green
+                    // once something's typed — the field stays plain white either way.
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.Keyboard,
+                            contentDescription = null,
+                            tint = if (keyword.isNotBlank()) KeywordInputFilled else KeywordInputEmpty,
+                        )
+                    },
                     supportingText = if (hint != null) {
                         { Text(hint) }
                     } else {
@@ -61,25 +72,6 @@ fun QuickFillDialog(
                     keyboardActions = KeyboardActions(
                         onGo = { if (keyword.isNotBlank()) onRun(keyword) },
                     ),
-                    // The whole field is filled light red while empty; once something is
-                    // typed it fills light green — a glance at the box itself, not just
-                    // its outline, says whether it's ready to run.
-                    colors = if (keyword.isNotBlank()) {
-                        OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = KeywordInputFilled,
-                            unfocusedContainerColor = KeywordInputFilled,
-                            focusedBorderColor = KeywordInputFilled,
-                            unfocusedBorderColor = KeywordInputFilled,
-                            cursorColor = MaterialTheme.colorScheme.onSurface,
-                        )
-                    } else {
-                        OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = KeywordInputEmpty,
-                            unfocusedContainerColor = KeywordInputEmpty,
-                            focusedBorderColor = KeywordInputEmpty,
-                            unfocusedBorderColor = KeywordInputEmpty,
-                        )
-                    },
                 )
                 Spacer(Modifier.height(16.dp))
                 Button(
