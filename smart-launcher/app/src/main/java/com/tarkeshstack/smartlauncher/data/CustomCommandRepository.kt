@@ -28,6 +28,7 @@ class CustomCommandRepository(private val context: Context) {
                 deepLinkUri = obj.optString("deepLinkUri", "").ifBlank { null },
                 systemAction = obj.optString("systemAction", "").ifBlank { null },
                 visibleOnHome = obj.optBoolean("visibleOnHome", true),
+                lastKeyword = obj.optString("lastKeyword", "").ifBlank { null },
             )
         }
     }
@@ -45,6 +46,7 @@ class CustomCommandRepository(private val context: Context) {
                     put("deepLinkUri", command.deepLinkUri ?: "")
                     put("systemAction", command.systemAction ?: "")
                     put("visibleOnHome", command.visibleOnHome)
+                    put("lastKeyword", command.lastKeyword ?: "")
                 },
             )
         }

@@ -29,7 +29,9 @@ import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputEmpty
 import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputFilled
 
 /** A one-field prompt for the keyword a command's link still needs before it can run —
- *  the value is only used for this run, so the saved command stays a reusable template.
+ *  the command's link itself keeps its placeholder, so it stays a reusable template, but
+ *  the value is remembered and passed back in as [initialKeyword] next time, surviving
+ *  closing and reopening the app.
  *  [hint], when known for the target app, shows a concrete example of what to type (e.g.
  *  "a username — your own, or someone else's" for an Instagram profile) so it's never a
  *  guess what belongs there. */
@@ -37,10 +39,11 @@ import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputFilled
 fun QuickFillDialog(
     commandLabel: String,
     hint: String?,
+    initialKeyword: String?,
     onDismiss: () -> Unit,
     onRun: (String) -> Unit,
 ) {
-    var keyword by remember { mutableStateOf("") }
+    var keyword by remember { mutableStateOf(initialKeyword.orEmpty()) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(24.dp), tonalElevation = 6.dp) {

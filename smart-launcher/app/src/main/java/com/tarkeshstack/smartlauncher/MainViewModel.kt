@@ -38,10 +38,6 @@ data class UiState(
     val isListening: Boolean = false,
     val pendingCapturedLink: CapturedLink? = null,
     val pendingSpeech: SpeechRequest? = null,
-    /** Ids of commands run with a keyword at least once this session — not persisted, so
-     *  it resets on the next launch; used only to color a command's keyboard badge green
-     *  once it's been fed a keyword, since the saved command itself never keeps one. */
-    val keywordFedCommandIds: Set<String> = emptySet(),
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -219,11 +215,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Runs a command whose deep link still has [DEEP_LINK_PLACEHOLDER] in it, substituting
-     *  [keyword] just for this run — the saved command itself stays a reusable template. */
+     *  [keyword] just for this run — the saved link itself keeps the placeholder, so the
+     *  command stays a reusable template, but [keyword] is remembered as the command's
+     *  lastKeyword so it's prefilled, and the command reads as already fed, the next time
+     *  the app is opened. */
     fun runCustomCommandWithKeyword(id: String, keyword: String) {
         val custom = _uiState.value.customCommands.firstOrNull { it.id == id } ?: return
-        val filledUri = custom.deepLinkUri?.replace(DEEP_LINK_PLACEHOLDER, Uri.encode(keyword.trim()))
-        _uiState.update { it.copy(keywordFedCommandIds = it.keywordFedCommandIds + id) }
+        val trimmedKeyword = keyword.trim()
+        val filledUri = custom.deepLinkUri?.replace(DEEP_LINK_PLACEHOLDER, Uri.encode(trimmedKeyword))
+        saveCustomCommand(custom.copy(lastKeyword = trimmedKeyword))
         runExecution(successMessage = "Ran \"${custom.label}\"") {
             executor.runCustomCommand(custom.copy(deepLinkUri = filledUri))
         }

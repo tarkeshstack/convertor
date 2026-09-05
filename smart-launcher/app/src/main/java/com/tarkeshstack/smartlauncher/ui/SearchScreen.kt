@@ -175,7 +175,7 @@ fun SearchScreen(
                 },
                 onEdit = { onEditCommand(command) },
                 onHide = { viewModel.setCommandVisibleOnHome(command.id, false) },
-                fedIn = command.id in state.keywordFedCommandIds,
+                fedIn = command.lastKeyword != null,
             )
         }
 
@@ -324,6 +324,7 @@ fun SearchScreen(
         QuickFillDialog(
             commandLabel = fillTarget.label,
             hint = DeepLinkSuggestions.all.firstOrNull { it.packageName == fillTarget.packageName }?.keywordHint,
+            initialKeyword = fillTarget.lastKeyword,
             onDismiss = { quickFillCommand = null },
             onRun = { keyword ->
                 viewModel.runCustomCommandWithKeyword(fillTarget.id, keyword)

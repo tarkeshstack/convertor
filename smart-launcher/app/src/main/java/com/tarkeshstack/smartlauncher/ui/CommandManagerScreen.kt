@@ -85,9 +85,6 @@ fun CommandManagerScreen(
     onGetLink: (currentPackage: String?) -> Unit,
     onBack: () -> Unit,
     onToggleVisibleOnHome: (CustomCommand) -> Unit,
-    /** Ids of commands run with a keyword at least once this session — colors a command's
-     *  keyboard badge green once it's been fed one, red until then. */
-    keywordFedCommandIds: Set<String>,
     /** Opens straight into the add-command form — used when this screen is reached via
      *  the home screen's "Add command"/edit-pencil row rather than the header icon. */
     openAddFormInitially: Boolean = false,
@@ -210,7 +207,7 @@ fun CommandManagerScreen(
                                         },
                                         onToggleVisibleOnHome = { onToggleVisibleOnHome(command) },
                                         onDelete = { onDelete(command.id) },
-                                        fedIn = command.id in keywordFedCommandIds,
+                                        fedIn = command.lastKeyword != null,
                                     )
                                     if (index != commands.lastIndex) {
                                         HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))

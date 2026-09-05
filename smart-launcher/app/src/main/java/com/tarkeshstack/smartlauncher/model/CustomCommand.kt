@@ -14,6 +14,12 @@ enum class CustomCommandKind { DEEP_LINK, SYSTEM_SHORTCUT }
  * [visibleOnHome] is per-command — each one is shown or hidden on the home screen's
  * quick-access list independently, rather than one all-or-nothing switch for all of
  * them; it's still always listed in the full "Your commands" screen either way.
+ *
+ * [lastKeyword] remembers the last value typed into a still-placeholder [deepLinkUri]'s
+ * quick-fill prompt, persisted so it survives closing and reopening the app — it prefills
+ * that prompt next time and marks the command as having been fed a keyword before,
+ * without baking the value into [deepLinkUri] itself, so the command stays reusable for a
+ * different keyword next time.
  */
 data class CustomCommand(
     val id: String,
@@ -24,4 +30,5 @@ data class CustomCommand(
     val deepLinkUri: String?,
     val systemAction: String? = null,
     val visibleOnHome: Boolean = true,
+    val lastKeyword: String? = null,
 )

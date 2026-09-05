@@ -166,7 +166,6 @@ class MainActivity : ComponentActivity() {
                         onToggleVisibleOnHome = { command ->
                             viewModel.setCommandVisibleOnHome(command.id, !command.visibleOnHome)
                         },
-                        keywordFedCommandIds = state.keywordFedCommandIds,
                         openAddFormInitially = openAddFormOnCommands,
                     )
                     Screen.GetLink -> GetLinkScreen(
