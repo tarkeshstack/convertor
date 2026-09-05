@@ -61,17 +61,21 @@ fun QuickFillDialog(
                     keyboardActions = KeyboardActions(
                         onGo = { if (keyword.isNotBlank()) onRun(keyword) },
                     ),
-                    // Not filled in yet reads as a light red outline; once something is
-                    // typed it turns light green, so the field itself signals whether
-                    // it's ready to run.
+                    // The whole field is filled light red while empty; once something is
+                    // typed it fills light green — a glance at the box itself, not just
+                    // its outline, says whether it's ready to run.
                     colors = if (keyword.isNotBlank()) {
                         OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = KeywordInputFilled,
+                            unfocusedContainerColor = KeywordInputFilled,
                             focusedBorderColor = KeywordInputFilled,
                             unfocusedBorderColor = KeywordInputFilled,
-                            cursorColor = KeywordInputFilled,
+                            cursorColor = MaterialTheme.colorScheme.onSurface,
                         )
                     } else {
                         OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = KeywordInputEmpty,
+                            unfocusedContainerColor = KeywordInputEmpty,
                             focusedBorderColor = KeywordInputEmpty,
                             unfocusedBorderColor = KeywordInputEmpty,
                         )
