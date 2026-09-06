@@ -25,8 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -34,7 +32,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -78,8 +75,6 @@ import com.tarkeshstack.smartlauncher.model.CustomCommand
 import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.model.DEEP_LINK_PLACEHOLDER
 import com.tarkeshstack.smartlauncher.model.DeepLinkSuggestions
-import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputEmpty
-import com.tarkeshstack.smartlauncher.ui.theme.KeywordInputFilled
 
 private enum class HomeTab { Apps, Commands }
 
@@ -92,7 +87,6 @@ fun SearchScreen(
     onMicTapped: () -> Unit,
     onOpenCommandManager: () -> Unit,
     onAddCommand: () -> Unit,
-    onEditCommand: (CustomCommand) -> Unit,
     onBack: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -128,7 +122,7 @@ fun SearchScreen(
                             )
                         }
                         Spacer(Modifier.width(10.dp))
-                        Text("Smart Launcher", fontWeight = FontWeight.SemiBold)
+                        Text("My Mobile", fontWeight = FontWeight.SemiBold)
                     }
                 },
                 navigationIcon = {
@@ -143,9 +137,9 @@ fun SearchScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(it) } },
     ) { padding ->
-        // Commands not hidden, app-linked ones first and system shortcuts after — each
-        // still carries its own hide eye and edit pencil; a hidden one stays fully
-        // manageable (show again, edit, delete) in "Your commands" only.
+        // Commands not hidden, app-linked ones first and system shortcuts after — tapping
+        // one here just runs it; showing/hiding, editing, and deleting all live in "Your
+        // commands" only, reached via "Manage all" below.
         val visibleCommands = state.customCommands
             .filter { it.visibleOnHome }
             .sortedBy { if (it.kind == CustomCommandKind.SYSTEM_SHORTCUT) 1 else 0 }
@@ -184,9 +178,6 @@ fun SearchScreen(
                         viewModel.runCustomCommandById(command.id)
                     }
                 },
-                onEdit = { onEditCommand(command) },
-                onHide = { viewModel.setCommandVisibleOnHome(command.id, false) },
-                fedIn = command.lastKeyword != null,
             )
         }
 
@@ -373,9 +364,6 @@ private fun CommandListRow(
     command: CustomCommand,
     app: AppInfo?,
     onClick: () -> Unit,
-    onEdit: () -> Unit,
-    onHide: () -> Unit,
-    fedIn: Boolean,
 ) {
     Surface(
         onClick = onClick,
@@ -415,34 +403,6 @@ private fun CommandListRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (command.deepLinkUri?.contains(DEEP_LINK_PLACEHOLDER) == true) {
-                Icon(
-                    Icons.Filled.Keyboard,
-                    contentDescription = if (fedIn) {
-                        "Run with a keyword this session"
-                    } else {
-                        "Needs a keyword to run"
-                    },
-                    tint = if (fedIn) KeywordInputFilled else KeywordInputEmpty,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-            IconButton(onClick = onHide, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    Icons.Filled.Visibility,
-                    contentDescription = "Hide from home screen",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-            IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    Icons.Filled.Edit,
-                    contentDescription = "Edit command",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
         }
     }
 }

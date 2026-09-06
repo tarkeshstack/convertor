@@ -78,7 +78,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Lets this app appear in other apps' Share sheet: pick "Smart Launcher"
+            <!-- Lets this app appear in other apps' Share sheet: pick "My Mobile"
                  when sharing a link out of another app to capture it as a deep link,
                  without needing to know that app's URI scheme. -->
             <intent-filter>

@@ -19,7 +19,6 @@ import androidx.core.content.ContextCompat
 import com.tarkeshstack.smartlauncher.capture.ShareIntentParser
 import com.tarkeshstack.smartlauncher.model.CapturedLink
 import com.tarkeshstack.smartlauncher.model.CommandDraft
-import com.tarkeshstack.smartlauncher.model.CustomCommandKind
 import com.tarkeshstack.smartlauncher.ui.BrowseForLinkScreen
 import com.tarkeshstack.smartlauncher.ui.CommandManagerScreen
 import com.tarkeshstack.smartlauncher.ui.GetLinkScreen
@@ -124,26 +123,6 @@ class MainActivity : ComponentActivity() {
                         },
                         onAddCommand = {
                             commandDraft = CommandDraft()
-                            openAddFormOnCommands = true
-                            screen = Screen.Commands
-                        },
-                        onEditCommand = { command ->
-                            commandDraft = CommandDraft(
-                                editingId = command.id,
-                                phrase = command.phrase,
-                                deepLinkUri = command.deepLinkUri.orEmpty(),
-                                deepLinkPackage = if (command.kind == CustomCommandKind.DEEP_LINK) {
-                                    command.packageName.orEmpty()
-                                } else {
-                                    ""
-                                },
-                                systemAction = command.systemAction.orEmpty(),
-                                systemActionLabel = if (command.kind == CustomCommandKind.SYSTEM_SHORTCUT) {
-                                    command.label
-                                } else {
-                                    ""
-                                },
-                            )
                             openAddFormOnCommands = true
                             screen = Screen.Commands
                         },

@@ -44,7 +44,7 @@ fun BrowseForLinkScreen(
     /** When set, starts already there instead of a blank Google homepage — a direct
      *  https:// URL (a known app's real website) opens straight to it, otherwise (e.g. a
      *  plain app name) falls back to searching for it, so picking an app elsewhere in the
-     *  app lands you here already looking for its site, without ever leaving Smart Launcher. */
+     *  app lands you here already looking for its site, without ever leaving My Mobile. */
     initialQuery: String? = null,
 ) {
     var addressBarText by remember {

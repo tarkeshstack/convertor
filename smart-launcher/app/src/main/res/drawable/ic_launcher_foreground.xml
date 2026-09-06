@@ -1,30 +1,40 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Nose cone -->
+
+    <!-- Phone case — sized to fill most of the icon canvas so it reads boldly even
+         small, rather than a small centered glyph. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,24 L67,50 L54,46 L41,50 Z" />
-    <!-- Body -->
+        android:fillColor="#1C1E24"
+        android:pathData="M42,12 L66,12 A12,12 0 0 1 78,24 L78,86 A12,12 0 0 1 66,98 L42,98 A12,12 0 0 1 30,86 L30,24 A12,12 0 0 1 42,12 Z" />
+
+    <!-- Screen, gradient-shaded top-to-bottom for a glossy, dimensional look. -->
+    <path android:pathData="M40,22 L68,22 A4,4 0 0 1 72,26 L72,82 A4,4 0 0 1 68,86 L40,86 A4,4 0 0 1 36,82 L36,26 A4,4 0 0 1 40,22 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="36" android:startY="22"
+                android:endX="72" android:endY="86"
+                android:startColor="#9CC0FA"
+                android:endColor="#2E5AAC" />
+        </aapt:attr>
+    </path>
+
+    <!-- Glossy highlight streak across the screen. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M44,48 L64,48 L64,74 A10,10 0 0 1 54,84 A10,10 0 0 1 44,74 Z" />
-    <!-- Left fin -->
+        android:fillColor="#33FFFFFF"
+        android:pathData="M38,24 L48,24 L40,50 L36,50 Z" />
+
+    <!-- Camera dot. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M44,66 L30,82 L44,76 Z" />
-    <!-- Right fin -->
+        android:fillColor="#0F1013"
+        android:pathData="M52,17 A2,2 0 1 1 56,17 A2,2 0 1 1 52,17 Z" />
+
+    <!-- Home indicator pill. -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M64,66 L78,82 L64,76 Z" />
-    <!-- Window -->
-    <path
-        android:fillColor="#2E5AAC"
-        android:pathData="M60,58 A6,6 0 1 1 48,58 A6,6 0 1 1 60,58 Z" />
-    <!-- Flame -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M49,84 L54,96 L59,84 Z" />
+        android:fillColor="#E7EDFB"
+        android:pathData="M49,90 L59,90 A2,2 0 1 1 59,94 L49,94 A2,2 0 1 1 49,90 Z" />
 </vector>
