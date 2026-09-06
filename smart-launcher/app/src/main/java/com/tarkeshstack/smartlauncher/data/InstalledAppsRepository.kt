@@ -20,13 +20,19 @@ class InstalledAppsRepository(private val context: Context) {
             .filter { it.activityInfo.packageName != context.packageName }
             .distinctBy { it.activityInfo.packageName }
             .map { resolveInfo ->
+                val packageName = resolveInfo.activityInfo.packageName
+                val installedAt = try {
+                    pm.getPackageInfo(packageName, 0).firstInstallTime
+                } catch (_: PackageManager.NameNotFoundException) {
+                    0L
+                }
                 AppInfo(
-                    packageName = resolveInfo.activityInfo.packageName,
+                    packageName = packageName,
                     label = resolveInfo.loadLabel(pm).toString(),
                     icon = resolveInfo.loadIcon(pm),
+                    installedAt = installedAt,
                 )
             }
-            .sortedBy { it.label.lowercase() }
             .toList()
     }
 

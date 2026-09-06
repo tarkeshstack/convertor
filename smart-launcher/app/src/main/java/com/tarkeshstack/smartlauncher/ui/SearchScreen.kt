@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -63,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -296,32 +300,55 @@ fun SearchScreen(
                 }
             }
 
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (isSearching) {
+            if (isSearching) {
+                // A temporary, narrowed-down list of matches reads better as a single
+                // column than as a grid, so searching keeps the old list layout.
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     items(relatedCommands, key = { "cmd_${it.id}" }) { command -> commandRow(command) }
                     items(state.filteredApps, key = { it.packageName }) { app ->
                         AppRow(app = app, onClick = { viewModel.launchApp(app) })
                     }
-                } else {
-                    when (selectedTab) {
-                        HomeTab.Apps -> {
-                            items(state.filteredApps, key = { it.packageName }) { app ->
-                                AppRow(app = app, onClick = { viewModel.launchApp(app) })
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
+            } else {
+                // Browsing (not searching) instead tiles apps 3-wide and commands
+                // 2-wide, so more of the list is visible without scrolling.
+                when (selectedTab) {
+                    HomeTab.Apps -> {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            gridItems(state.filteredApps, key = { it.packageName }) { app ->
+                                AppGridTile(app = app, onClick = { viewModel.launchApp(app) })
                             }
                         }
-                        HomeTab.Commands -> {
-                            items(visibleCommands, key = { it.id }) { command -> commandRow(command) }
+                    }
+                    HomeTab.Commands -> {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            gridItems(visibleCommands, key = { it.id }) { command -> commandRow(command) }
                         }
                     }
                 }
-
-                item { Spacer(Modifier.height(16.dp)) }
             }
         }
     }
@@ -443,6 +470,36 @@ private fun QuickActionCard(label: String, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         }
+    }
+}
+
+/** An app tile for the 3-wide grid on the Apps tab — icon on top, label below, the way a
+ *  home-screen app drawer usually lays out — rather than the horizontal icon-then-label
+ *  row used for search results, which doesn't suit a narrow grid column. */
+@Composable
+private fun AppGridTile(app: AppInfo, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Image(
+            bitmap = remember(app.packageName) { app.icon.toBitmap(width = 96, height = 96).asImageBitmap() },
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            app.label,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

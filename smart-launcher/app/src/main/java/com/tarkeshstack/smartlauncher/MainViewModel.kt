@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.tarkeshstack.smartlauncher.command.ActionExecutor
 import com.tarkeshstack.smartlauncher.command.CommandParser
 import com.tarkeshstack.smartlauncher.command.ExecutionResult
+import com.tarkeshstack.smartlauncher.data.AppUsageRepository
 import com.tarkeshstack.smartlauncher.data.ContactsRepository
 import com.tarkeshstack.smartlauncher.data.CustomCommandRepository
 import com.tarkeshstack.smartlauncher.data.InstalledAppsRepository
@@ -43,9 +44,13 @@ data class UiState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val appsRepo = InstalledAppsRepository(application)
+    private val appUsageRepo = AppUsageRepository(application)
     private val contactsRepo = ContactsRepository(application)
     private val customCommandsRepo = CustomCommandRepository(application)
     private val executor = ActionExecutor(application, appsRepo, contactsRepo)
+
+    // Not part of UiState — it only exists to rank apps, never rendered directly.
+    private var appUsageCounts: Map<String, Int> = emptyMap()
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -53,6 +58,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             val apps = appsRepo.loadLaunchableApps()
+            appUsageCounts = appUsageRepo.loadAll()
+            val sortedApps = rankApps(apps)
             var customCommands = customCommandsRepo.loadAll()
             if (customCommands.isEmpty()) {
                 // First run (or everything was deleted) — seed a couple of handy
@@ -61,7 +68,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 customCommands = defaultCommands()
                 customCommandsRepo.saveAll(customCommands)
             }
-            _uiState.update { it.copy(allApps = apps, filteredApps = apps, customCommands = customCommands) }
+            _uiState.update {
+                it.copy(allApps = sortedApps, filteredApps = sortedApps, customCommands = customCommands)
+            }
         }
     }
 
@@ -113,6 +122,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         "Netflix" -> "netflix title"
         "Google Maps" -> "maps search"
         else -> null
+    }
+
+    /** Most-launched-from-here apps first (most launches first among those), then every
+     *  other app — never opened from this launcher — newest install first. */
+    private fun rankApps(apps: List<AppInfo>): List<AppInfo> {
+        val (used, unused) = apps.partition { (appUsageCounts[it.packageName] ?: 0) > 0 }
+        val usedRanked = used.sortedWith(
+            compareByDescending<AppInfo> { appUsageCounts[it.packageName] ?: 0 }
+                .thenByDescending { it.installedAt },
+        )
+        val unusedRanked = unused.sortedByDescending { it.installedAt }
+        return usedRanked + unusedRanked
     }
 
     /** Per-command home-screen visibility — each saved command shows or hides on the
@@ -181,6 +202,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun launchApp(app: AppInfo) {
+        viewModelScope.launch {
+            appUsageCounts = appUsageRepo.recordLaunch(app.packageName)
+            val reranked = rankApps(_uiState.value.allApps)
+            _uiState.update { it.copy(allApps = reranked, filteredApps = filterApps(it.query)) }
+        }
         runExecution(successMessage = "Opened ${app.label}") { executor.openApp(app.packageName) }
     }
 
