@@ -42,6 +42,7 @@ import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -89,6 +90,8 @@ fun SearchScreen(
     onMicTapped: () -> Unit,
     onOpenCommandManager: () -> Unit,
     onAddCommand: () -> Unit,
+    isDefaultLauncher: Boolean,
+    onToggleDefaultLauncher: () -> Unit,
     onBack: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -200,6 +203,19 @@ fun SearchScreen(
             // the Commands tab) is always available no matter how far down the list below
             // is scrolled.
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Set as default launcher",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = isDefaultLauncher, onCheckedChange = { onToggleDefaultLauncher() })
+                }
                 Spacer(Modifier.height(8.dp))
                 TextField(
                     value = state.query,

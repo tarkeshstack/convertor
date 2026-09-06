@@ -78,6 +78,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Makes this app eligible to be picked as the device's Home app, so
+                 pressing Home opens it instead of the stock launcher's app pages. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
             <!-- Lets this app appear in other apps' Share sheet: pick "My Mobile"
                  when sharing a link out of another app to capture it as a deep link,
                  without needing to know that app's URI scheme. -->

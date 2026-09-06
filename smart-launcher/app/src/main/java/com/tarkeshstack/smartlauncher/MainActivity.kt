@@ -1,10 +1,13 @@
 package com.tarkeshstack.smartlauncher
 
+import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,6 +47,15 @@ class MainActivity : ComponentActivity() {
     private var wasListeningBeforePause = false
     private var pendingPauseStop: Runnable? = null
 
+    /** Whether this app is currently the device's default Home app — re-read on every
+     *  resume, since the only way it changes is through a system dialog or Settings
+     *  screen this activity doesn't control, both of which return here afterward. */
+    private var isDefaultLauncher by mutableStateOf(false)
+
+    private val requestHomeRole = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { refreshDefaultLauncherState() }
+
     private val requestContactsPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> viewModel.onContactsPermissionResult(granted) }
@@ -70,6 +82,7 @@ class MainActivity : ComponentActivity() {
         voiceOutputController = VoiceOutputController(this)
 
         handleShareIntent(intent)
+        refreshDefaultLauncherState()
 
         setContent {
             SmartAppLauncherTheme {
@@ -126,6 +139,8 @@ class MainActivity : ComponentActivity() {
                             openAddFormOnCommands = true
                             screen = Screen.Commands
                         },
+                        isDefaultLauncher = isDefaultLauncher,
+                        onToggleDefaultLauncher = { openDefaultLauncherFlow() },
                         onBack = { moveTaskToBack(true) },
                     )
                     Screen.Commands -> CommandManagerScreen(
@@ -201,6 +216,9 @@ class MainActivity : ComponentActivity() {
         if (wasListeningBeforePause && !viewModel.uiState.value.isListening) {
             startListening()
         }
+        // Covers coming back from the Home-app picker or the role-request dialog, which
+        // this activity doesn't get a normal callback from otherwise.
+        refreshDefaultLauncherState()
     }
 
     override fun onDestroy() {
@@ -217,6 +235,29 @@ class MainActivity : ComponentActivity() {
     private fun startListening() {
         if (!hasMicPermission()) return
         voiceController?.startListening()
+    }
+
+    private fun refreshDefaultLauncherState() {
+        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val resolved = packageManager.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+        isDefaultLauncher = resolved?.activityInfo?.packageName == packageName
+    }
+
+    /** Neither becoming nor giving up the Home role can happen silently — Android only
+     *  lets the user choose, through one of two system flows depending on API level and
+     *  direction. Either way, [requestHomeRole] re-checks the real result once it returns. */
+    private fun openDefaultLauncherFlow() {
+        if (!isDefaultLauncher && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roleManager = getSystemService(RoleManager::class.java)
+            if (roleManager?.isRoleAvailable(RoleManager.ROLE_HOME) == true) {
+                requestHomeRole.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME))
+                return
+            }
+        }
+        // Already default and turning it off, or no role-request API to offer turning it
+        // on (pre-Android 10) — either way, the Home-app picker in Settings is the only
+        // place to change it.
+        requestHomeRole.launch(Intent(Settings.ACTION_HOME_SETTINGS))
     }
 
     private fun handleShareIntent(intent: Intent?) {
