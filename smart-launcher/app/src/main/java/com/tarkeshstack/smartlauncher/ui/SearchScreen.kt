@@ -60,12 +60,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.tarkeshstack.smartlauncher.MainViewModel
 import com.tarkeshstack.smartlauncher.R
@@ -94,6 +95,16 @@ fun SearchScreen(
     var quickFillCommand by remember { mutableStateOf<CustomCommand?>(null) }
     var selectedTab by remember { mutableStateOf(HomeTab.Apps) }
 
+    // painterResource() doesn't support the adaptive-icon XML the launcher icon is
+    // defined as (it crashes at runtime) — loading it as a Drawable and rasterizing it,
+    // the same way every app icon elsewhere on this screen is shown, works instead.
+    val context = LocalContext.current
+    val appIconBitmap = remember {
+        ContextCompat.getDrawable(context, R.mipmap.ic_launcher)
+            ?.toBitmap(width = 96, height = 96)
+            ?.asImageBitmap()
+    }
+
     LaunchedEffect(state.statusMessage) {
         state.statusMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -110,11 +121,19 @@ fun SearchScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(R.mipmap.ic_launcher),
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp).clip(CircleShape),
-                        )
+                        if (appIconBitmap != null) {
+                            Image(
+                                bitmap = appIconBitmap,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp).clip(CircleShape),
+                            )
+                        } else {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(32.dp),
+                            ) {}
+                        }
                         Spacer(Modifier.width(10.dp))
                         Text("My Mobile", fontWeight = FontWeight.SemiBold)
                     }
