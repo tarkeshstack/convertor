@@ -207,7 +207,6 @@ fun CommandManagerScreen(
                                         },
                                         onToggleVisibleOnHome = { onToggleVisibleOnHome(command) },
                                         onDelete = { onDelete(command.id) },
-                                        fedIn = command.lastKeyword != null,
                                     )
                                     if (index != commands.lastIndex) {
                                         HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp))
@@ -260,7 +259,6 @@ private fun CommandRow(
     onEdit: () -> Unit,
     onToggleVisibleOnHome: () -> Unit,
     onDelete: () -> Unit,
-    fedIn: Boolean,
 ) {
     val app = remember(command.packageName, allApps) {
         allApps.firstOrNull { it.packageName == command.packageName }
@@ -304,14 +302,6 @@ private fun CommandRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (command.deepLinkUri?.contains(PLACEHOLDER) == true) {
-            Icon(
-                Icons.Filled.Keyboard,
-                contentDescription = if (fedIn) "Run with a keyword this session" else "Needs a keyword to run",
-                tint = if (fedIn) KeywordInputFilled else KeywordInputEmpty,
-                modifier = Modifier.size(15.dp).padding(end = 2.dp),
-            )
-        }
         IconButton(onClick = onToggleVisibleOnHome, modifier = Modifier.size(30.dp)) {
             Icon(
                 if (command.visibleOnHome) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,

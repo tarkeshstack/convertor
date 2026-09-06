@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
@@ -61,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -68,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.tarkeshstack.smartlauncher.MainViewModel
+import com.tarkeshstack.smartlauncher.R
 import com.tarkeshstack.smartlauncher.UiState
 import com.tarkeshstack.smartlauncher.model.ActionType
 import com.tarkeshstack.smartlauncher.model.AppInfo
@@ -109,18 +110,11 @@ fun SearchScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                Icons.Filled.RocketLaunch,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(6.dp),
-                            )
-                        }
+                        Image(
+                            painter = painterResource(R.mipmap.ic_launcher),
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp).clip(CircleShape),
+                        )
                         Spacer(Modifier.width(10.dp))
                         Text("My Mobile", fontWeight = FontWeight.SemiBold)
                     }
@@ -373,27 +367,28 @@ private fun CommandListRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            // Taller than a plain text row — was cramped with just 4.dp top/bottom.
+            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 16.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             when {
                 app != null -> Image(
-                    bitmap = remember(app.packageName) { app.icon.toBitmap(width = 48, height = 48).asImageBitmap() },
+                    bitmap = remember(app.packageName) { app.icon.toBitmap(width = 64, height = 64).asImageBitmap() },
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(26.dp),
                 )
                 command.kind == CustomCommandKind.SYSTEM_SHORTCUT -> Icon(
                     Icons.Filled.Settings,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(24.dp),
                 )
                 else -> Icon(
                     Icons.Filled.Link,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(24.dp),
                 )
             }
             Text(
