@@ -1,5 +1,6 @@
 package com.tarkeshstack.smartlauncher.command
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -84,8 +85,14 @@ class ActionExecutor(
             if (action.isNullOrBlank()) {
                 ExecutionResult.Failed("This command has no system shortcut configured")
             } else {
-                start(Intent(action))
-                ExecutionResult.Launched
+                try {
+                    start(Intent(action))
+                    ExecutionResult.Launched
+                } catch (_: ActivityNotFoundException) {
+                    // A few shortcuts (e.g. the permission manager) only exist on newer
+                    // Android versions or may be missing on some OEM builds.
+                    ExecutionResult.Failed("\"${command.label}\" isn't available on this device")
+                }
             }
         }
     }

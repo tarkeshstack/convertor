@@ -107,7 +107,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 systemAction = null,
             )
         }
-        return systemCommands + popularCommands
+        // Chrome's downloads page has a fixed, keyword-free URI — unlike the popular
+        // commands above, it's ready to run as soon as it's created.
+        val chromeDownloads = CustomCommand(
+            id = UUID.randomUUID().toString(),
+            phrase = "chrome downloads",
+            label = "Chrome Downloads",
+            kind = CustomCommandKind.DEEP_LINK,
+            packageName = "com.android.chrome",
+            deepLinkUri = "chrome://downloads",
+            systemAction = null,
+        )
+        return systemCommands + popularCommands + chromeDownloads
     }
 
     /** Trigger phrase for each popular suggestion worth a default command — the generic

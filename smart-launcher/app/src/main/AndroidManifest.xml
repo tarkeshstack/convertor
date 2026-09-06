@@ -37,6 +37,7 @@
         <package android:name="com.spotify.music" />
         <package android:name="com.amazon.mShop.android.shopping" />
         <package android:name="com.google.android.gm" />
+        <package android:name="com.android.chrome" />
 
         <intent>
             <action android:name="android.intent.action.DIAL" />
