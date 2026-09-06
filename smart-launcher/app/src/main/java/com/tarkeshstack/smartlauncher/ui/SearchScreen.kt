@@ -447,9 +447,10 @@ private fun AppGridTile(app: AppInfo, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Image(
-            bitmap = remember(app.packageName) { app.icon.toBitmap(width = 96, height = 96).asImageBitmap() },
+            bitmap = remember(app.packageName) { app.icon.toBitmap(width = 144, height = 144).asImageBitmap() },
             contentDescription = null,
-            modifier = Modifier.size(48.dp),
+            // 1.5x the previous 48.dp, so apps read bigger and bolder in this grid.
+            modifier = Modifier.size(72.dp),
         )
         Spacer(Modifier.height(6.dp))
         Text(

@@ -113,15 +113,15 @@ fun CommandManagerScreen(
         // area above the command list, outside the list's LazyColumn — so it's always the
         // first thing on screen and stays put (floating above the list) as the list below
         // is scrolled, instead of disappearing off the top like just another row would.
-        // It still scrolls internally so a long open form's last field can ride up above
-        // the keyboard rather than being hidden behind it.
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        // imePadding sits on this outer Column rather than the scrollable one below it —
+        // applying it to a nested verticalScroll container was interfering with the
+        // keyboard actually opening for the fields inside it on some devices.
+        Column(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .imePadding(),
+                    .padding(horizontal = 16.dp),
             ) {
                 Spacer(Modifier.height(12.dp))
                 Text(
@@ -471,6 +471,7 @@ private fun AddCommandForm(
                                 } else {
                                     KeywordInputEmpty
                                 },
+                                modifier = Modifier.size(28.dp),
                             )
                         },
                         supportingText = if (keywordHint != null) {
