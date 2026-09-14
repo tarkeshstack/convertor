@@ -1041,6 +1041,29 @@ def patch_speakeasy_profanity_filter(fragment: str) -> str:
     return fragment
 
 
+def patch_speakeasy_more_indian_languages(fragment: str) -> str:
+    """SpeakEasy only offered 4 of the main page's 10 curated Indian
+    languages (Hindi, Tamil, Kannada, Malayalam) alongside English/Spanish/
+    French. Add the other 6 (Telugu, Bengali, Gujarati, Marathi, Assamese,
+    Odia) so voice interpretation covers the same language set as the
+    dictionary/live-translate side of the app -- keeping Spanish and French
+    as they are for now."""
+    old = """    { code: "ml", name: "Malayalam", bcp: "ml-IN", glyph: "അ", color: "var(--chakra-blue)" },
+    { code: "es", name: "Spanish", bcp: "es-ES", glyph: "Ñ", color: "var(--green)" },"""
+    new = """    { code: "ml", name: "Malayalam", bcp: "ml-IN", glyph: "അ", color: "var(--chakra-blue)" },
+    { code: "te", name: "Telugu",   bcp: "te-IN", glyph: "అ", color: "var(--teal)" },
+    { code: "bn", name: "Bengali",  bcp: "bn-IN", glyph: "অ", color: "var(--maroon)" },
+    { code: "gu", name: "Gujarati", bcp: "gu-IN", glyph: "અ", color: "var(--saffron)" },
+    { code: "mr", name: "Marathi",  bcp: "mr-IN", glyph: "अ", color: "var(--green)" },
+    { code: "as", name: "Assamese", bcp: "as-IN", glyph: "অ", color: "var(--chakra-blue)" },
+    { code: "or", name: "Odia",     bcp: "or-IN", glyph: "ଅ", color: "var(--teal)" },
+    { code: "es", name: "Spanish", bcp: "es-ES", glyph: "Ñ", color: "var(--green)" },"""
+    if old not in fragment:
+        raise ValueError("LANGUAGES array (Malayalam/Spanish rows) not found — upstream speakeasy script changed")
+    fragment = fragment.replace(old, new)
+    return fragment
+
+
 def patch_dark_mode(html: str) -> str:
     """Add a light-grey dark mode: a header toggle button that flips
     :root[data-theme] between light and dark, persisted in localStorage, and
@@ -1262,6 +1285,7 @@ def patch_template(html: str, template_id: str) -> str:
         fragment = patch_speakeasy_theme(fragment)
         fragment = patch_speakeasy_lang_select_borderless(fragment)
         fragment = patch_speakeasy_profanity_filter(fragment)
+        fragment = patch_speakeasy_more_indian_languages(fragment)
     return before + fragment + after
 
 
