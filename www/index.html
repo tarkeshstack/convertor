@@ -2724,6 +2724,9 @@ let toLang = 'hi';
 let currentEntry = null;
 
 function normalize(s){ return s.trim().toLowerCase(); }
+const PROFANITY_WORDS = ['fuck','fucking','fucker','fucked','fuckin','motherfucker','shit','shitty','bullshit','horseshit','bitch','bitches','asshole','dickhead','dumbass','jackass','dipshit','bastard','cunt','dick','pussy','slut','whore','twat','wank','wanker','bollocks','arsehole','nigger','nigga','faggot','fag','retard','cock','goddamn'];
+const PROFANITY_RE = new RegExp('\\b(' + PROFANITY_WORDS.join('|') + ')\\b', 'i');
+function containsProfanity(text){ return !!text && PROFANITY_RE.test(text); }
 // Strips scholarly diacritics (ā, ī, ū, ṇ, ś, ṛ, ñ, etc.) so a plain-ASCII Hinglish
 // spelling like "bhindi" still matches a curated transliteration stored as "bhindī".
 function normalizeLoose(s){
@@ -2972,6 +2975,15 @@ document.getElementById('splitscreen-tip-dismiss').addEventListener('click', ()=
 
 function showResult(term, opts){
   opts = opts || {};
+  if(containsProfanity(term)){
+    resultBox.classList.remove('show');
+    currentEntry = null;
+    if(liveGrid) liveGrid.innerHTML = '';
+    if(liveStatusEl) liveStatusEl.textContent = "Wordly doesn't show results for profanity or obscene language.";
+    emptyState.classList.add('show');
+    setHasContent(true);
+    return;
+  }
   let entry;
   if(fromLang === 'en'){
     entry = DICTIONARY.find(d => d.w.toLowerCase() === normalize(term));
@@ -3350,6 +3362,12 @@ let lastLiveTranslation = null; // {inputText, pairs:[{label, text, translit}]} 
 
 async function liveGoogleTranslate(term){
   if(!liveStatusEl || !liveGrid) return;
+  if(containsProfanity(term)){
+    liveStatusEl.textContent = "Wordly doesn't translate profanity or obscene language.";
+    liveGrid.innerHTML = '';
+    lastLiveTranslation = null;
+    return;
+  }
   liveStatusEl.textContent = 'Translating…';
   liveGrid.innerHTML = '';
   lastLiveTranslation = null;
@@ -4507,6 +4525,10 @@ window.addEventListener('message', (e)=>{
 
   // ---- Translation (same Google Translate endpoint Wordly uses) ----
 
+  var PROFANITY_WORDS = ['fuck','fucking','fucker','fucked','fuckin','motherfucker','shit','shitty','bullshit','horseshit','bitch','bitches','asshole','dickhead','dumbass','jackass','dipshit','bastard','cunt','dick','pussy','slut','whore','twat','wank','wanker','bollocks','arsehole','nigger','nigga','faggot','fag','retard','cock','goddamn'];
+  var PROFANITY_RE = new RegExp('\\b(' + PROFANITY_WORDS.join('|') + ')\\b', 'i');
+  function containsProfanity(text) { return !!text && PROFANITY_RE.test(text); }
+
   function translate(text, sourceCode, targetCode) {
     if (sourceCode === targetCode) return Promise.resolve(text);
     var url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=" + sourceCode +
@@ -4543,6 +4565,12 @@ window.addEventListener('message', (e)=>{
 
   function handleUtterance(text) {
     if (!text || !text.trim()) { setStatus("idle"); return; }
+    if (containsProfanity(text)) {
+      state.result = null;
+      state.errorMessage = "Wordly doesn't translate profanity or obscene language.";
+      setStatus("error");
+      return;
+    }
     var autoDetected = !state.sourceCode;
     var sourceCode = state.sourceCode || detectLanguage(text);
     var targetCode = state.targetCode;

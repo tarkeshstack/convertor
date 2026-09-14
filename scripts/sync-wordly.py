@@ -943,6 +943,104 @@ def patch_lang_card_text_clear_listen_btn(html: str) -> str:
     return html
 
 
+def patch_profanity_filter(html: str) -> str:
+    """Google Play's content-rating questionnaire asks whether the app can
+    surface profanity -- Wordly's dictionary lookup and live translation
+    otherwise pass whatever's typed straight through with no check at all.
+    Block obscene English input outright (no result, no translation) rather
+    than showing or blurring it. This is a plain-spelling English blocklist;
+    it doesn't catch profanity typed directly in Hindi/Tamil/Kannada/
+    Malayalam script or leetspeak substitutions."""
+    old = "function normalize(s){ return s.trim().toLowerCase(); }"
+    new = """function normalize(s){ return s.trim().toLowerCase(); }
+const PROFANITY_WORDS = ['fuck','fucking','fucker','fucked','fuckin','motherfucker','shit','shitty','bullshit','horseshit','bitch','bitches','asshole','dickhead','dumbass','jackass','dipshit','bastard','cunt','dick','pussy','slut','whore','twat','wank','wanker','bollocks','arsehole','nigger','nigga','faggot','fag','retard','cock','goddamn'];
+const PROFANITY_RE = new RegExp('\\\\b(' + PROFANITY_WORDS.join('|') + ')\\\\b', 'i');
+function containsProfanity(text){ return !!text && PROFANITY_RE.test(text); }"""
+    if old not in html:
+        raise ValueError("normalize() not found — upstream script changed")
+    html = html.replace(old, new, 1)
+
+    old = """function showResult(term, opts){
+  opts = opts || {};
+  let entry;"""
+    new = """function showResult(term, opts){
+  opts = opts || {};
+  if(containsProfanity(term)){
+    resultBox.classList.remove('show');
+    currentEntry = null;
+    if(liveGrid) liveGrid.innerHTML = '';
+    if(liveStatusEl) liveStatusEl.textContent = "Wordly doesn't show results for profanity or obscene language.";
+    emptyState.classList.add('show');
+    setHasContent(true);
+    return;
+  }
+  let entry;"""
+    if old not in html:
+        raise ValueError("showResult() header not found — upstream script changed")
+    html = html.replace(old, new)
+
+    old = """async function liveGoogleTranslate(term){
+  if(!liveStatusEl || !liveGrid) return;
+  liveStatusEl.textContent = 'Translating…';
+  liveGrid.innerHTML = '';
+  lastLiveTranslation = null;
+  try{"""
+    new = """async function liveGoogleTranslate(term){
+  if(!liveStatusEl || !liveGrid) return;
+  if(containsProfanity(term)){
+    liveStatusEl.textContent = "Wordly doesn't translate profanity or obscene language.";
+    liveGrid.innerHTML = '';
+    lastLiveTranslation = null;
+    return;
+  }
+  liveStatusEl.textContent = 'Translating…';
+  liveGrid.innerHTML = '';
+  lastLiveTranslation = null;
+  try{"""
+    if old not in html:
+        raise ValueError("liveGoogleTranslate() header not found — upstream script changed")
+    html = html.replace(old, new)
+    return html
+
+
+def patch_speakeasy_profanity_filter(fragment: str) -> str:
+    """Same profanity block as the main page's dictionary/live-translate
+    paths (see patch_profanity_filter), applied to SpeakEasy's own
+    speech-to-translation pipeline -- it runs in a sandboxed iframe with its
+    own script scope, so the check has to be duplicated here rather than
+    shared."""
+    old = """  // ---- Translation (same Google Translate endpoint Wordly uses) ----
+
+  function translate(text, sourceCode, targetCode) {"""
+    new = """  // ---- Translation (same Google Translate endpoint Wordly uses) ----
+
+  var PROFANITY_WORDS = ['fuck','fucking','fucker','fucked','fuckin','motherfucker','shit','shitty','bullshit','horseshit','bitch','bitches','asshole','dickhead','dumbass','jackass','dipshit','bastard','cunt','dick','pussy','slut','whore','twat','wank','wanker','bollocks','arsehole','nigger','nigga','faggot','fag','retard','cock','goddamn'];
+  var PROFANITY_RE = new RegExp('\\\\b(' + PROFANITY_WORDS.join('|') + ')\\\\b', 'i');
+  function containsProfanity(text) { return !!text && PROFANITY_RE.test(text); }
+
+  function translate(text, sourceCode, targetCode) {"""
+    if old not in fragment:
+        raise ValueError("translate() header not found — upstream speakeasy script changed")
+    fragment = fragment.replace(old, new)
+
+    old = """  function handleUtterance(text) {
+    if (!text || !text.trim()) { setStatus("idle"); return; }
+    var autoDetected = !state.sourceCode;"""
+    new = """  function handleUtterance(text) {
+    if (!text || !text.trim()) { setStatus("idle"); return; }
+    if (containsProfanity(text)) {
+      state.result = null;
+      state.errorMessage = "Wordly doesn't translate profanity or obscene language.";
+      setStatus("error");
+      return;
+    }
+    var autoDetected = !state.sourceCode;"""
+    if old not in fragment:
+        raise ValueError("handleUtterance() header not found — upstream speakeasy script changed")
+    fragment = fragment.replace(old, new)
+    return fragment
+
+
 def patch_dark_mode(html: str) -> str:
     """Add a light-grey dark mode: a header toggle button that flips
     :root[data-theme] between light and dark, persisted in localStorage, and
@@ -1163,6 +1261,7 @@ def patch_template(html: str, template_id: str) -> str:
         fragment = patch_speakeasy_share_save(fragment)
         fragment = patch_speakeasy_theme(fragment)
         fragment = patch_speakeasy_lang_select_borderless(fragment)
+        fragment = patch_speakeasy_profanity_filter(fragment)
     return before + fragment + after
 
 
@@ -1183,6 +1282,7 @@ def main():
     src_html = patch_remove_chakra_watermark(src_html)
     src_html = patch_examples_only_when_to_english(src_html)
     src_html = patch_lang_card_text_clear_listen_btn(src_html)
+    src_html = patch_profanity_filter(src_html)
     src_html = patch_dark_mode(src_html)
 
     marker = "</body>"
