@@ -11,10 +11,10 @@ def releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
 def hasReleaseSigning = releaseStorePath && file(releaseStorePath).exists()
 
 android {
-    namespace "com.wordly.app"
+    namespace "com.wordlylanguage.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.wordly.app"
+        applicationId "com.wordlylanguage.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

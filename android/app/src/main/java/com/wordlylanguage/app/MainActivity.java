@@ -1,4 +1,4 @@
-package com.wordly.app;
+package com.wordlylanguage.app;
 
 import com.getcapacitor.BridgeActivity;
 

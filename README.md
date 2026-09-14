@@ -5,7 +5,7 @@ Wordly is packaged as a native Android app using [Capacitor](https://capacitorjs
 ## Project layout
 
 - `www/index.html` — generated from the live site by `scripts/sync-wordly.py` (see below) — do not hand-edit
-- `capacitor.config.json` — Capacitor app config (app id `com.wordly.app`, app name `Wordly`)
+- `capacitor.config.json` — Capacitor app config (app id `com.wordlylanguage.app`, app name `Wordly`)
 - `android/` — generated native Android Studio project
 - `resources/`, `assets-src/` — source icon/splash images used to generate the Android launcher icons and splash screens
 - `scripts/gen-icon.js` — regenerates the source icon/splash PNGs from SVG (uses `sharp`, install it as a dev dependency if you need to re-run this)
