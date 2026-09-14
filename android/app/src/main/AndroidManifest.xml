@@ -35,7 +35,7 @@
 
     <!-- firebase-analytics pulls in play-services-ads-identifier, which merges this
          permission in by default even though nothing in the app uses it (Analytics
-         itself is dormant until google-services.json is re-added) -- strip it so the
-         app doesn't carry an unused advertising-ID capability. -->
+         itself is dormant until google-services.json is re-added), so strip it: the
+         app shouldn't carry an unused advertising-ID capability. -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
 </manifest>
