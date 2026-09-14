@@ -33,9 +33,12 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- firebase-analytics pulls in play-services-ads-identifier, which merges this
-         permission in by default even though nothing in the app uses it (Analytics
-         itself is dormant until google-services.json is re-added), so strip it: the
-         app shouldn't carry an unused advertising-ID capability. -->
+    <!-- firebase-analytics pulls in play-services-ads-identifier and the Android 13+
+         Privacy Sandbox AdServices libraries, which merge these permissions in by
+         default even though nothing in the app uses them (Analytics itself is
+         dormant until google-services.json is re-added), so strip them: the app
+         shouldn't carry unused advertising-ID/attribution capability. -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION" tools:node="remove" />
 </manifest>
